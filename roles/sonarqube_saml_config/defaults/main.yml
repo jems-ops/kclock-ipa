@@ -1,0 +1,4 @@
+---
+sonarqube_admin_token:        "{{ vault_sonarqube_admin_token }}"
+sonarqube_validate_certs:     false   # set true if your cert is trusted by the controller
+keycloak_saml_metadata_url:   "{{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml/descriptor"

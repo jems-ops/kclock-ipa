@@ -1,0 +1,4 @@
+---
+# Override these in group_vars/all/main.yml if needed
+freeipa_ca_cert_path:            /etc/ipa/ca.crt
+freeipa_keycloak_ca_export_path: /tmp/freeipa-ca.crt

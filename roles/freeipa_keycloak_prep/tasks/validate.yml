@@ -1,0 +1,21 @@
+---
+- name: Validate LDAP bind account can search users
+  ansible.builtin.shell: >
+    LDAPTLS_REQCERT=never ldapsearch -x
+    -H "{{ freeipa_ldap_url }}"
+    -D "{{ freeipa_bind_dn }}"
+    -w "{{ freeipa_bind_password }}"
+    -b "{{ freeipa_users_dn }}"
+    "(uid=admin)"
+    dn
+  register: ldap_validation
+  changed_when: false
+  failed_when: ldap_validation.rc != 0
+  no_log: true
+
+- name: Show LDAP validation result
+  ansible.builtin.debug:
+    msg:
+      - "Bind DN : {{ freeipa_bind_dn }}"
+      - "Users DN: {{ freeipa_users_dn }}"
+      - "LDAP bind validation: SUCCESS"

@@ -1,0 +1,53 @@
+# Ansible
+*.retry
+.ansible/
+ansible.log
+
+# Vault password - never commit
+.vault_pass
+vault_pass.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# Molecule / Testing
+.molecule/
+.cache/
+.pytest_cache/
+htmlcov/
+.coverage
+test-results/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets & keys
+secrets/
+*.pem
+*.key
+id_rsa*
+id_ecdsa*
+id_ed25519*
+
+# Temp / backups
+*.tmp
+*.temp
+*.backup
+*.bak
+*.orig
+local_settings.yml
+local_vars.yml

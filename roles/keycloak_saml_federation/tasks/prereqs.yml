@@ -1,0 +1,22 @@
+---
+- name: Create temp directory for Keycloak payloads
+  ansible.builtin.file:
+    path: "{{ keycloak_tmp_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Check keytool is available (required for truststore management)
+  ansible.builtin.command: which keytool
+  register: keytool_check
+  changed_when: false
+  failed_when: keytool_check.rc != 0
+
+- name: Check kcadm.sh exists
+  ansible.builtin.stat:
+    path: "{{ keycloak_kcadm }}"
+  register: kcadm_stat
+
+- name: Fail if kcadm.sh is missing
+  ansible.builtin.fail:
+    msg: "kcadm.sh not found at {{ keycloak_kcadm }}. Is Keycloak installed at {{ keycloak_home }}?"
+  when: not kcadm_stat.stat.exists

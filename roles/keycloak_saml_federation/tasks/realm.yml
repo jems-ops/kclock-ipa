@@ -1,0 +1,23 @@
+---
+- name: Check if realm already exists
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get realms/{{ keycloak_realm }}
+  register: realm_check
+  changed_when: false
+  failed_when: false
+
+- name: Create realm if missing
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create realms
+    -s realm={{ keycloak_realm }}
+    -s enabled=true
+    -s displayName="{{ keycloak_realm | capitalize }} Realm"
+    -s registrationAllowed=false
+    -s loginWithEmailAllowed=true
+  when: realm_check.rc != 0
+  register: realm_create
+  changed_when: realm_create.rc == 0
+
+- name: Realm status
+  ansible.builtin.debug:
+    msg: "Realm '{{ keycloak_realm }}': {{ 'already existed' if realm_check.rc == 0 else 'created' }}"

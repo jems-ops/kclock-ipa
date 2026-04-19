@@ -1,0 +1,88 @@
+---
+# Resolve the internal UUID for each SAML client (needed to attach protocol mappers)
+- name: Gather internal client UUIDs
+  ansible.builtin.shell: >
+    {{ keycloak_kcadm }} get clients -r {{ keycloak_realm }}
+    -q clientId={{ item.client_id }}
+    | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")'
+  register: saml_client_uuid_results
+  changed_when: false
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Build client name → UUID map
+  ansible.builtin.set_fact:
+    saml_client_ids: "{{ saml_client_ids | default({}) | combine({item.item.name: item.stdout | trim}) }}"
+  loop: "{{ saml_client_uuid_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+# ─── NameID mappers ──────────────────────────────────────────────────────────
+- name: Render NameID mapper payloads
+  ansible.builtin.template:
+    src: saml-nameid-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/nameid-{{ item.name }}.json"
+    mode: "0644"
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create NameID mappers
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create
+    clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/nameid-{{ item.name }}.json
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: nameid_mapper_result
+  failed_when: false
+  changed_when: nameid_mapper_result.rc == 0
+
+# ─── User property mappers ───────────────────────────────────────────────────
+- name: Render user property mapper payloads
+  ansible.builtin.template:
+    src: saml-user-property-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.property }}.json"
+    mode: "0644"
+  loop: "{{ keycloak_saml_clients | subelements('attributes') }}"
+  loop_control:
+    label: "{{ item.0.name }} -> {{ item.1.property }}"
+
+- name: Create user property mappers
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create
+    clients/{{ saml_client_ids[item.0.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.property }}.json
+  loop: "{{ keycloak_saml_clients | subelements('attributes') }}"
+  loop_control:
+    label: "{{ item.0.name }} -> {{ item.1.property }}"
+  register: user_prop_mapper_result
+  failed_when: false
+  changed_when: user_prop_mapper_result.rc == 0
+
+# ─── Group membership mapper ─────────────────────────────────────────────────
+- name: Render group list mapper payloads
+  ansible.builtin.template:
+    src: saml-group-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/groups-{{ item.name }}.json"
+    mode: "0644"
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create group list mappers
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create
+    clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/groups-{{ item.name }}.json
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: group_mapper_result
+  failed_when: false
+  changed_when: group_mapper_result.rc == 0

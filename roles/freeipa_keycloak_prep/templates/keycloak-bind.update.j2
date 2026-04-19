@@ -1,0 +1,7 @@
+dn: uid={{ freeipa_bind_uid }},cn=sysaccounts,cn=etc,{{ freeipa_base_dn }}
+default:objectClass: account
+default:objectClass: simpleSecurityObject
+default:uid: {{ freeipa_bind_uid }}
+only:userPassword: {{ freeipa_bind_password }}
+only:passwordExpirationTime: 20380119031407Z
+only:nsIdleTimeout: 0

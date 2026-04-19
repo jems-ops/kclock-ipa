@@ -1,0 +1,104 @@
+Plan manual docs
+
+FreeIPA on Server 1 = IdM / LDAP / Kerberos user store
+Keycloak on Server 2 = SAML IdP for your applications
+
+That is usually the best design because Keycloak is built to act as a SAML 2.0 identity provider for apps, and it can integrate with external user stores and external identity providers. Keycloak’s docs also describe both user federation and identity brokering, while its securing-apps guide confirms it supports SAML for applications.  
+
+Recommended architecture
+
+User → SAML Application → Keycloak (IdP) → FreeIPA (LDAP/Kerberos/IdM)
+
+So the app never talks to FreeIPA directly for SAML.
+Instead:
+	•	the application trusts Keycloak
+	•	Keycloak validates/authenticates users
+	•	Keycloak gets users from FreeIPA through LDAP federation, and optionally Kerberos/SPNEGO where useful. Keycloak has documented LDAP and Kerberos integration improvements, including support around Kerberos realms in LDAP providers.  
+
+What this gives you
+
+You can achieve SSO for SAML apps by making Keycloak your central IdP, while still keeping FreeIPA as the source of identities, groups, and authentication data. This lets you keep FreeIPA for identity management and use Keycloak for federation, SAML assertions, client mappings, and login flows.  
+
+Best implementation path
+
+Option A — Best for your setup
+Use Keycloak + LDAP User Federation to FreeIPA
+
+This is the normal pattern when FreeIPA is your enterprise directory and Keycloak is your SSO layer.
+
+Flow:
+	1.	Add FreeIPA LDAP into Keycloak as a User Federation provider.
+	2.	Configure user lookup, bind DN, search base, group mappings.
+	3.	Test login against FreeIPA users.
+	4.	Create each SAML application as a client in Keycloak.
+	5.	Exchange Keycloak metadata with the SAML app.
+	6.	Map username, email, first name, last name, and groups/roles into SAML assertions.
+
+This approach is the most practical for “FreeIPA as IdM, Keycloak as IdP.” Keycloak’s admin guide documents federation to external identity stores and SAML/OIDC IdPs, and its SAML support for applications is documented in the securing-apps guide.  
+
+Option B — More advanced
+Use Kerberos/SPNEGO with FreeIPA behind Keycloak for desktop SSO.
+
+This is useful if you want domain-joined users to get a more seamless login experience. Keycloak has documented Kerberos-related improvements in LDAP provider support.  
+
+What not to do
+
+Do not try to make every SAML app integrate directly with FreeIPA.
+For your goal, FreeIPA should stay the identity backend, while Keycloak is the federation and SAML front end. That keeps the design simpler and more scalable.
+
+Minimal build plan
+
+On FreeIPA
+	•	Ensure users and groups exist
+	•	Ensure LDAP access from Keycloak works
+	•	Create a service/bind account for Keycloak if needed
+	•	Confirm DNS and certificates are correct
+
+On Keycloak
+	•	Create a realm
+	•	Add LDAP User Federation
+	•	Point it to FreeIPA LDAP
+	•	Import or sync users/groups
+	•	Configure group or role mappers
+	•	Create a SAML client for each application
+	•	Export IdP metadata / provide SSO URL, Entity ID, certificate
+
+On each SAML app
+	•	Set Keycloak as the IdP
+	•	Import Keycloak metadata
+	•	Configure ACS URL / Entity ID
+	•	Map NameID and attributes
+
+Practical result
+
+After this is configured:
+	•	one user signs in through Keycloak
+	•	Keycloak authenticates using FreeIPA-backed identity
+	•	the user can access multiple SAML applications with SSO
+
+My recommendation for you
+
+For your environment, I would implement it this way:
+
+Server 1: FreeIPA
+	•	LDAP/Kerberos/identity source
+	•	groups and users managed here
+
+Server 2: Keycloak
+	•	SAML IdP
+	•	LDAP federation to FreeIPA
+	•	attribute/group mapping
+	•	client config for each SAML app
+
+That is the right foundation if your first goal is:
+“I want SSO at least for SAML applications.”
+
+High-level sequence
+
+1. User opens SAML app
+2. App redirects user to Keycloak
+3. Keycloak checks/syncs user from FreeIPA LDAP
+4. User authenticates
+5. Keycloak sends SAML assertion to app
+6. App grants access
+

@@ -1,0 +1,23 @@
+---
+profile: min
+
+exclude_paths:
+  - .cache/
+  - .pytest_cache/
+  - inventory/group_vars/all/vault.yml
+
+skip_list:
+  - yaml[line-length]
+  - yaml[empty-lines]
+  - no-changed-when
+  - command-instead-of-shell
+  - risky-shell-pipe
+
+warn_list:
+  - experimental
+
+var_naming_pattern: "^[a-z_][a-z0-9_]*$"
+
+offline: false
+quiet: false
+verbosity: 1

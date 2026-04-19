@@ -1,0 +1,11 @@
+---
+- import_tasks: prereqs.yml
+- import_tasks: auth.yml
+- import_tasks: realm.yml
+- import_tasks: truststore.yml
+- import_tasks: ldap_provider.yml
+- import_tasks: ldap_mappers.yml
+- import_tasks: saml_clients.yml
+- import_tasks: saml_mappers.yml
+- import_tasks: sync.yml
+- import_tasks: validate.yml

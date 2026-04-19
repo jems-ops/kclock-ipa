@@ -1,0 +1,103 @@
+---
+# Pattern: render payload → attempt create → rc==0 means created, non-zero means already exists (409)
+# failed_when: false prevents failure on duplicates; changed_when: rc==0 ensures idempotent reporting.
+
+- name: Render username LDAP mapper
+  ansible.builtin.template:
+    src: user-attribute-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-username.json"
+    mode: "0644"
+  vars:
+    mapper_name:      username
+    ldap_attr:        uid
+    user_model_attr:  username
+
+- name: Create username LDAP mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-username.json
+  register: mapper_username
+  failed_when: false
+  changed_when: mapper_username.rc == 0
+
+- name: Render email LDAP mapper
+  ansible.builtin.template:
+    src: user-attribute-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-email.json"
+    mode: "0644"
+  vars:
+    mapper_name:      email
+    ldap_attr:        mail
+    user_model_attr:  email
+
+- name: Create email LDAP mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-email.json
+  register: mapper_email
+  failed_when: false
+  changed_when: mapper_email.rc == 0
+
+- name: Render firstName LDAP mapper
+  ansible.builtin.template:
+    src: user-attribute-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-firstname.json"
+    mode: "0644"
+  vars:
+    mapper_name:      firstName
+    ldap_attr:        givenName
+    user_model_attr:  firstName
+
+- name: Create firstName LDAP mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-firstname.json
+  register: mapper_firstname
+  failed_when: false
+  changed_when: mapper_firstname.rc == 0
+
+- name: Render lastName LDAP mapper
+  ansible.builtin.template:
+    src: user-attribute-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-lastname.json"
+    mode: "0644"
+  vars:
+    mapper_name:      lastName
+    ldap_attr:        sn
+    user_model_attr:  lastName
+
+- name: Create lastName LDAP mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-lastname.json
+  register: mapper_lastname
+  failed_when: false
+  changed_when: mapper_lastname.rc == 0
+
+- name: Render full-name LDAP mapper
+  ansible.builtin.template:
+    src: full-name-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-fullname.json"
+    mode: "0644"
+
+- name: Create full-name LDAP mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-fullname.json
+  register: mapper_fullname
+  failed_when: false
+  changed_when: mapper_fullname.rc == 0
+
+- name: Render group LDAP mapper
+  ansible.builtin.template:
+    src: group-ldap-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-groups.json"
+    mode: "0644"
+
+- name: Create group LDAP mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-groups.json
+  register: mapper_groups
+  failed_when: false
+  changed_when: mapper_groups.rc == 0

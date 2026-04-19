@@ -1,0 +1,943 @@
+Below is a full Ansible role skeleton for FreeIPA + Keycloak where:
+	•	FreeIPA is the identity source
+	•	Keycloak is the SAML IdP
+	•	SAML apps trust Keycloak
+	•	Keycloak federates users/groups from FreeIPA over LDAP
+
+This approach matches Keycloak’s LDAP federation and SAML client model, and FreeIPA’s documented pattern for creating a dedicated LDAP bind account under cn=sysaccounts,cn=etc,....  ￼
+
+Servers are defined in the inventory as follows:
+
+[freeipa]
+freeipa.local ansible_host=192.168.56.14
+
+[keycloak]
+keycloak.local ansible_host=192.168.201.12
+
+[sonarqube]
+sonar.local ansible_host=192.168.201.16
+
+[nginx]
+nginx-proxy ansible_host=192.168.201.15
+⸻
+
+1) Project layout
+
+ansible/
+├── inventory/
+│   └── hosts.yml
+├── group_vars/
+│   ├── all.yml
+│   └── vault.yml
+├── playbooks/
+│   ├── freeipa_prep.yml
+│   ├── keycloak_config.yml
+│   └── site.yml
+└── roles/
+    ├── freeipa_keycloak_prep/
+    │   ├── defaults/
+    │   │   └── main.yml
+    │   ├── tasks/
+    │   │   ├── main.yml
+    │   │   ├── bind_account.yml
+    │   │   ├── export_ca.yml
+    │   │   └── validate.yml
+    │   ├── templates/
+    │   │   └── keycloak-bind.update.j2
+    │   └── handlers/
+    │       └── main.yml
+    │
+    └── keycloak_saml_federation/
+        ├── defaults/
+        │   └── main.yml
+        ├── tasks/
+        │   ├── main.yml
+        │   ├── prereqs.yml
+        │   ├── auth.yml
+        │   ├── realm.yml
+        │   ├── ldap_provider.yml
+        │   ├── ldap_mappers.yml
+        │   ├── saml_clients.yml
+        │   ├── saml_mappers.yml
+        │   ├── sync.yml
+        │   └── validate.yml
+        ├── templates/
+        │   ├── ldap-provider.json.j2
+        │   ├── user-attribute-mapper.json.j2
+        │   ├── full-name-mapper.json.j2
+        │   ├── group-ldap-mapper.json.j2
+        │   ├── saml-client.json.j2
+        │   ├── saml-user-property-mapper.json.j2
+        │   ├── saml-group-mapper.json.j2
+        │   └── saml-nameid-mapper.json.j2
+        └── handlers/
+            └── main.yml
+
+
+⸻
+
+2) Inventory
+
+inventory/hosts.yml
+
+all:
+  children:
+    freeipa:
+      hosts:
+        ipa01:
+          ansible_host: server1.example.com
+    keycloak:
+      hosts:
+        keycloak01:
+          ansible_host: server2.example.com
+
+
+⸻
+
+3) Shared variables
+
+group_vars/all.yml
+
+freeipa_domain: example.com
+freeipa_realm: EXAMPLE.COM
+freeipa_base_dn: dc=example,dc=com
+freeipa_users_dn: cn=users,cn=accounts,dc=example,dc=com
+freeipa_groups_dn: cn=groups,cn=accounts,dc=example,dc=com
+
+freeipa_bind_uid: keycloak-bind
+freeipa_bind_dn: "uid={{ freeipa_bind_uid }},cn=sysaccounts,cn=etc,{{ freeipa_base_dn }}"
+
+freeipa_ldap_url: ldaps://server1.example.com:636
+
+keycloak_base_url: https://server2.example.com
+keycloak_admin_realm: master
+keycloak_realm: corp
+keycloak_admin_user: admin
+
+keycloak_home: /opt/keycloak
+keycloak_kcadm: "{{ keycloak_home }}/bin/kcadm.sh"
+
+keycloak_ldap_provider_name: freeipa-ldap
+keycloak_ldap_username_attr: uid
+keycloak_ldap_rdn_attr: uid
+keycloak_ldap_uuid_attr: ipaUniqueID
+keycloak_ldap_user_object_classes:
+  - top
+  - person
+  - organizationalPerson
+  - inetOrgPerson
+
+keycloak_truststore_path: "{{ keycloak_home }}/conf/truststore.jks"
+keycloak_truststore_password: changeit
+
+keycloak_saml_clients:
+  - name: app1-saml
+    client_id: https://app1.example.com/saml
+    acs_url: https://app1.example.com/saml/acs
+    admin_url: ""
+    base_url: https://app1.example.com
+    redirect_uris:
+      - https://app1.example.com/*
+    nameid_format: email
+    nameid_user_attribute: email
+    sign_documents: "true"
+    sign_assertions: "true"
+    force_post_binding: "true"
+    include_authnstatement: "true"
+    attributes:
+      - { property: username, saml_name: username, friendly_name: username }
+      - { property: email, saml_name: email, friendly_name: email }
+      - { property: firstName, saml_name: firstName, friendly_name: firstName }
+      - { property: lastName, saml_name: lastName, friendly_name: lastName }
+
+group_vars/vault.yml
+
+vault_freeipa_bind_password: SuperSecretBindPassword
+vault_keycloak_admin_password: SuperSecretAdminPassword
+
+Use Ansible Vault for this file.
+
+⸻
+
+4) Playbooks
+
+playbooks/freeipa_prep.yml
+
+- name: Prepare FreeIPA for Keycloak LDAP federation
+  hosts: freeipa
+  become: true
+  roles:
+    - freeipa_keycloak_prep
+
+playbooks/keycloak_config.yml
+
+- name: Configure Keycloak realm, LDAP federation, and SAML clients
+  hosts: keycloak
+  become: true
+  roles:
+    - keycloak_saml_federation
+
+playbooks/site.yml
+
+- import_playbook: freeipa_prep.yml
+- import_playbook: keycloak_config.yml
+
+
+⸻
+
+5) FreeIPA role
+
+roles/freeipa_keycloak_prep/defaults/main.yml
+
+freeipa_bind_password: "{{ vault_freeipa_bind_password }}"
+freeipa_ca_cert_path: /etc/ipa/ca.crt
+freeipa_keycloak_ca_export_path: /tmp/freeipa-ca.crt
+
+roles/freeipa_keycloak_prep/tasks/main.yml
+
+- import_tasks: bind_account.yml
+- import_tasks: export_ca.yml
+- import_tasks: validate.yml
+
+roles/freeipa_keycloak_prep/tasks/bind_account.yml
+
+- name: Create FreeIPA bind update file
+  ansible.builtin.template:
+    src: keycloak-bind.update.j2
+    dest: /root/keycloak-bind.update
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Create or update FreeIPA bind account
+  ansible.builtin.command: ipa-ldap-updater /root/keycloak-bind.update
+  register: ipa_bind_create
+  changed_when: "'Update complete' in ipa_bind_create.stdout or ipa_bind_create.rc == 0"
+
+roles/freeipa_keycloak_prep/tasks/export_ca.yml
+
+- name: Ensure FreeIPA CA cert exists
+  ansible.builtin.stat:
+    path: "{{ freeipa_ca_cert_path }}"
+  register: ipa_ca_stat
+
+- name: Copy FreeIPA CA cert to temporary export path
+  ansible.builtin.copy:
+    src: "{{ freeipa_ca_cert_path }}"
+    dest: "{{ freeipa_keycloak_ca_export_path }}"
+    remote_src: true
+    mode: "0644"
+  when: ipa_ca_stat.stat.exists
+
+roles/freeipa_keycloak_prep/tasks/validate.yml
+
+- name: Validate LDAP bind account can search users
+  ansible.builtin.shell: >
+    ldapsearch -x
+    -D "{{ freeipa_bind_dn }}"
+    -w "{{ freeipa_bind_password }}"
+    -b "{{ freeipa_users_dn }}"
+    "(uid=admin)"
+  register: ldap_bind_validation
+  changed_when: false
+  failed_when: ldap_bind_validation.rc != 0
+
+- name: Show bind validation summary
+  ansible.builtin.debug:
+    msg:
+      - "FreeIPA bind DN: {{ freeipa_bind_dn }}"
+      - "LDAP bind validation succeeded"
+
+roles/freeipa_keycloak_prep/templates/keycloak-bind.update.j2
+
+dn: uid={{ freeipa_bind_uid }},cn=sysaccounts,cn=etc,{{ freeipa_base_dn }}
+default:objectClass: account
+default:objectClass: simpleSecurityObject
+default:uid: {{ freeipa_bind_uid }}
+only:userPassword: {{ freeipa_bind_password }}
+only:passwordExpirationTime: 20380119031407Z
+only:nsIdleTimeout: 0
+
+That bind-account pattern follows FreeIPA’s documented method for creating a dedicated LDAP bind DN under cn=sysaccounts,cn=etc,... and loading it with ipa-ldap-updater.  ￼
+
+⸻
+
+6) Keycloak role
+
+roles/keycloak_saml_federation/defaults/main.yml
+
+keycloak_admin_password: "{{ vault_keycloak_admin_password }}"
+keycloak_ldap_bind_password: "{{ vault_freeipa_bind_password }}"
+keycloak_tmp_dir: /tmp/keycloak-ansible
+
+roles/keycloak_saml_federation/tasks/main.yml
+
+- import_tasks: prereqs.yml
+- import_tasks: auth.yml
+- import_tasks: realm.yml
+- import_tasks: ldap_provider.yml
+- import_tasks: ldap_mappers.yml
+- import_tasks: saml_clients.yml
+- import_tasks: saml_mappers.yml
+- import_tasks: sync.yml
+- import_tasks: validate.yml
+
+
+⸻
+
+7) Keycloak prerequisites
+
+roles/keycloak_saml_federation/tasks/prereqs.yml
+
+- name: Create temp directory for Keycloak payloads
+  ansible.builtin.file:
+    path: "{{ keycloak_tmp_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure keytool exists
+  ansible.builtin.command: which keytool
+  register: keytool_check
+  changed_when: false
+  failed_when: keytool_check.rc != 0
+
+- name: Ensure kcadm.sh exists
+  ansible.builtin.stat:
+    path: "{{ keycloak_kcadm }}"
+  register: kcadm_stat
+
+- name: Fail if kcadm.sh is missing
+  ansible.builtin.fail:
+    msg: "kcadm.sh not found at {{ keycloak_kcadm }}"
+  when: not kcadm_stat.stat.exists
+
+
+⸻
+
+8) Authenticate to Keycloak
+
+roles/keycloak_saml_federation/tasks/auth.yml
+
+- name: Authenticate kcadm against Keycloak admin realm
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} config credentials
+    --server {{ keycloak_base_url }}
+    --realm {{ keycloak_admin_realm }}
+    --user {{ keycloak_admin_user }}
+    --password {{ keycloak_admin_password }}
+  register: kcadm_auth
+  changed_when: false
+
+
+⸻
+
+9) Create realm
+
+roles/keycloak_saml_federation/tasks/realm.yml
+
+- name: Check if realm exists
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get realms/{{ keycloak_realm }}
+  register: realm_check
+  changed_when: false
+  failed_when: false
+
+- name: Create realm if missing
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create realms
+    -s realm={{ keycloak_realm }}
+    -s enabled=true
+  when: realm_check.rc != 0
+
+
+⸻
+
+10) LDAP provider
+
+Keycloak’s server admin guide documents LDAP storage providers as components under a realm, and shows the components endpoint plus mapper component types such as group-ldap-mapper and full-name-ldap-mapper.  ￼
+
+roles/keycloak_saml_federation/tasks/ldap_provider.yml
+
+- name: Query existing LDAP components in realm
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get components -r {{ keycloak_realm }}
+    -q parent={{ keycloak_realm }}
+  register: ldap_components_raw
+  changed_when: false
+
+- name: Set LDAP provider present flag
+  ansible.builtin.set_fact:
+    keycloak_ldap_provider_present: "{{ keycloak_ldap_provider_name in ldap_components_raw.stdout }}"
+
+- name: Render LDAP provider payload
+  ansible.builtin.template:
+    src: ldap-provider.json.j2
+    dest: "{{ keycloak_tmp_dir }}/ldap-provider.json"
+    mode: "0644"
+  when: not keycloak_ldap_provider_present
+
+- name: Create LDAP provider component
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/ldap-provider.json
+  when: not keycloak_ldap_provider_present
+
+- name: Query LDAP provider id
+  ansible.builtin.shell: >
+    {{ keycloak_kcadm }} get components -r {{ keycloak_realm }}
+    | python3 -c 'import sys,json;
+    data=json.load(sys.stdin);
+    matches=[x for x in data if x.get("name")=="{{ keycloak_ldap_provider_name }}"];
+    print(matches[0]["id"] if matches else "")'
+  register: ldap_provider_id_cmd
+  changed_when: false
+
+- name: Save LDAP provider id
+  ansible.builtin.set_fact:
+    keycloak_ldap_provider_id: "{{ ldap_provider_id_cmd.stdout | trim }}"
+
+- name: Fail if LDAP provider id was not found
+  ansible.builtin.fail:
+    msg: "LDAP provider {{ keycloak_ldap_provider_name }} not found after creation"
+  when: keycloak_ldap_provider_id | length == 0
+
+roles/keycloak_saml_federation/templates/ldap-provider.json.j2
+
+{
+  "name": "{{ keycloak_ldap_provider_name }}",
+  "providerId": "ldap",
+  "providerType": "org.keycloak.storage.UserStorageProvider",
+  "parentId": "{{ keycloak_realm }}",
+  "config": {
+    "enabled": ["true"],
+    "priority": ["0"],
+    "fullSyncPeriod": ["-1"],
+    "changedSyncPeriod": ["-1"],
+    "cachePolicy": ["DEFAULT"],
+    "batchSizeForSync": ["1000"],
+    "editMode": ["READ_ONLY"],
+    "importEnabled": ["true"],
+    "syncRegistrations": ["false"],
+    "vendor": ["other"],
+    "usernameLDAPAttribute": ["{{ keycloak_ldap_username_attr }}"],
+    "rdnLDAPAttribute": ["{{ keycloak_ldap_rdn_attr }}"],
+    "uuidLDAPAttribute": ["{{ keycloak_ldap_uuid_attr }}"],
+    "userObjectClasses": ["{{ keycloak_ldap_user_object_classes | join(',') }}"],
+    "connectionUrl": ["{{ freeipa_ldap_url }}"],
+    "usersDn": ["{{ freeipa_users_dn }}"],
+    "authType": ["simple"],
+    "bindDn": ["{{ freeipa_bind_dn }}"],
+    "bindCredential": ["{{ keycloak_ldap_bind_password }}"],
+    "searchScope": ["2"],
+    "validatePasswordPolicy": ["false"],
+    "trustEmail": ["true"],
+    "useKerberosForPasswordAuthentication": ["false"],
+    "pagination": ["true"]
+  }
+}
+
+
+⸻
+
+11) LDAP mappers
+
+Keycloak documents dedicated LDAP mapper types including full-name-ldap-mapper and group-ldap-mapper, with configuration keys like groups.dn, group.name.ldap.attribute, group.object.classes, membership.ldap.attribute, and membership.attribute.type.  ￼
+
+roles/keycloak_saml_federation/tasks/ldap_mappers.yml
+
+- name: Render username mapper payload
+  ansible.builtin.template:
+    src: user-attribute-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-username.json"
+    mode: "0644"
+  vars:
+    mapper_name: username
+    ldap_attr: uid
+    user_model_attr: username
+
+- name: Create username mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-username.json
+  failed_when: false
+  changed_when: true
+
+- name: Render email mapper payload
+  ansible.builtin.template:
+    src: user-attribute-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-email.json"
+    mode: "0644"
+  vars:
+    mapper_name: email
+    ldap_attr: mail
+    user_model_attr: email
+
+- name: Create email mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-email.json
+  failed_when: false
+  changed_when: true
+
+- name: Render first name mapper payload
+  ansible.builtin.template:
+    src: user-attribute-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-firstname.json"
+    mode: "0644"
+  vars:
+    mapper_name: firstName
+    ldap_attr: givenName
+    user_model_attr: firstName
+
+- name: Create first name mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-firstname.json
+  failed_when: false
+  changed_when: true
+
+- name: Render last name mapper payload
+  ansible.builtin.template:
+    src: user-attribute-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-lastname.json"
+    mode: "0644"
+  vars:
+    mapper_name: lastName
+    ldap_attr: sn
+    user_model_attr: lastName
+
+- name: Create last name mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-lastname.json
+  failed_when: false
+  changed_when: true
+
+- name: Render full name mapper payload
+  ansible.builtin.template:
+    src: full-name-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-fullname.json"
+    mode: "0644"
+
+- name: Create full name mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-fullname.json
+  failed_when: false
+  changed_when: true
+
+- name: Render group LDAP mapper payload
+  ansible.builtin.template:
+    src: group-ldap-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/mapper-groups.json"
+    mode: "0644"
+
+- name: Create group LDAP mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/mapper-groups.json
+  failed_when: false
+  changed_when: true
+
+roles/keycloak_saml_federation/templates/user-attribute-mapper.json.j2
+
+{
+  "name": "{{ mapper_name }}",
+  "providerId": "user-attribute-ldap-mapper",
+  "providerType": "org.keycloak.storage.ldap.mappers.LDAPStorageMapper",
+  "parentId": "{{ keycloak_ldap_provider_id }}",
+  "config": {
+    "ldap.attribute": ["{{ ldap_attr }}"],
+    "user.model.attribute": ["{{ user_model_attr }}"],
+    "read.only": ["true"],
+    "always.read.value.from.ldap": ["true"],
+    "is.mandatory.in.ldap": ["false"]
+  }
+}
+
+roles/keycloak_saml_federation/templates/full-name-mapper.json.j2
+
+{
+  "name": "full-name",
+  "providerId": "full-name-ldap-mapper",
+  "providerType": "org.keycloak.storage.ldap.mappers.LDAPStorageMapper",
+  "parentId": "{{ keycloak_ldap_provider_id }}",
+  "config": {
+    "ldap.full.name.attribute": ["cn"],
+    "read.only": ["true"],
+    "write.only": ["false"]
+  }
+}
+
+roles/keycloak_saml_federation/templates/group-ldap-mapper.json.j2
+
+{
+  "name": "freeipa-groups",
+  "providerId": "group-ldap-mapper",
+  "providerType": "org.keycloak.storage.ldap.mappers.LDAPStorageMapper",
+  "parentId": "{{ keycloak_ldap_provider_id }}",
+  "config": {
+    "groups.dn": ["{{ freeipa_groups_dn }}"],
+    "group.name.ldap.attribute": ["cn"],
+    "group.object.classes": ["groupOfNames"],
+    "preserve.group.inheritance": ["true"],
+    "membership.ldap.attribute": ["member"],
+    "membership.attribute.type": ["DN"],
+    "mode": ["LDAP_ONLY"],
+    "user.roles.retrieve.strategy": ["LOAD_GROUPS_BY_MEMBER_ATTRIBUTE"],
+    "drop.non.existing.groups.during.sync": ["false"]
+  }
+}
+
+
+⸻
+
+12) SAML clients
+
+Keycloak supports SAML clients and publishes realm-level SAML descriptor metadata that service providers can use when integrating against Keycloak as an IdP.  ￼
+
+roles/keycloak_saml_federation/tasks/saml_clients.yml
+
+- name: Render SAML client payloads
+  ansible.builtin.template:
+    src: saml-client.json.j2
+    dest: "{{ keycloak_tmp_dir }}/client-{{ item.name }}.json"
+    mode: "0644"
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create SAML clients
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create clients -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/client-{{ item.name }}.json
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  failed_when: false
+  changed_when: true
+
+roles/keycloak_saml_federation/templates/saml-client.json.j2
+
+{
+  "clientId": "{{ item.client_id }}",
+  "name": "{{ item.name }}",
+  "enabled": true,
+  "protocol": "saml",
+  "baseUrl": "{{ item.base_url }}",
+  "adminUrl": "{{ item.admin_url }}",
+  "redirectUris": {{ item.redirect_uris | to_json }},
+  "attributes": {
+    "saml.assertion.signature": "{{ item.sign_assertions }}",
+    "saml.server.signature": "{{ item.sign_documents }}",
+    "saml.force.post.binding": "{{ item.force_post_binding }}",
+    "saml.authnstatement": "{{ item.include_authnstatement }}",
+    "saml_name_id_format": "{{ item.nameid_format }}",
+    "saml_single_logout_service_url_post": "",
+    "saml_assertion_consumer_url_post": "{{ item.acs_url }}"
+  }
+}
+
+
+⸻
+
+13) SAML mappers
+
+roles/keycloak_saml_federation/tasks/saml_mappers.yml
+
+- name: Gather SAML client ids
+  ansible.builtin.shell: >
+    {{ keycloak_kcadm }} get clients -r {{ keycloak_realm }}
+    -q clientId='{{ item.client_id }}'
+    | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")'
+  register: saml_client_id_results
+  changed_when: false
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Build client id map
+  ansible.builtin.set_fact:
+    saml_client_ids: "{{ saml_client_ids | default({}) | combine({item.item.name: item.stdout | trim}) }}"
+  loop: "{{ saml_client_id_results.results }}"
+
+- name: Render NameID mapper payloads
+  ansible.builtin.template:
+    src: saml-nameid-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/nameid-{{ item.name }}.json"
+    mode: "0644"
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create NameID mappers
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/nameid-{{ item.name }}.json
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  failed_when: false
+  changed_when: true
+
+- name: Render user property mappers
+  ansible.builtin.template:
+    src: saml-user-property-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.property }}.json"
+    mode: "0644"
+  loop: "{{ keycloak_saml_clients | subelements('attributes') }}"
+  loop_control:
+    label: "{{ item.0.name }} -> {{ item.1.property }}"
+
+- name: Create user property mappers
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create clients/{{ saml_client_ids[item.0.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.property }}.json
+  loop: "{{ keycloak_saml_clients | subelements('attributes') }}"
+  loop_control:
+    label: "{{ item.0.name }} -> {{ item.1.property }}"
+  failed_when: false
+  changed_when: true
+
+- name: Render group list mapper payloads
+  ansible.builtin.template:
+    src: saml-group-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/groups-{{ item.name }}.json"
+    mode: "0644"
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create group list mappers
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/groups-{{ item.name }}.json
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  failed_when: false
+  changed_when: true
+
+roles/keycloak_saml_federation/templates/saml-nameid-mapper.json.j2
+
+{
+  "name": "nameid",
+  "protocol": "saml",
+  "protocolMapper": "saml-user-attribute-nameid-mapper",
+  "config": {
+    "user.attribute": "{{ item.nameid_user_attribute }}",
+    "saml.nameid.format": "{% if item.nameid_format == 'email' %}urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress{% else %}urn:oasis:names:tc:SAML:2.0:nameid-format:persistent{% endif %}"
+  }
+}
+
+roles/keycloak_saml_federation/templates/saml-user-property-mapper.json.j2
+
+{
+  "name": "{{ item.1.property }}",
+  "protocol": "saml",
+  "protocolMapper": "saml-user-property-mapper",
+  "config": {
+    "attribute.name": "{{ item.1.saml_name }}",
+    "friendly.name": "{{ item.1.friendly_name }}",
+    "user.attribute": "{{ item.1.property }}",
+    "attribute.nameformat": "Basic"
+  }
+}
+
+roles/keycloak_saml_federation/templates/saml-group-mapper.json.j2
+
+{
+  "name": "groups",
+  "protocol": "saml",
+  "protocolMapper": "saml-group-membership-mapper",
+  "config": {
+    "attribute.name": "groups",
+    "attribute.nameformat": "Basic",
+    "friendly.name": "groups",
+    "single": "false",
+    "full.path": "false"
+  }
+}
+
+
+⸻
+
+14) Sync and validation
+
+roles/keycloak_saml_federation/tasks/sync.yml
+
+- name: Trigger full user sync
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create user-storage/{{ keycloak_ldap_provider_id }}/sync?action=triggerFullSync
+    -r {{ keycloak_realm }}
+  register: full_sync_result
+  changed_when: true
+  failed_when: false
+
+- name: Show sync result
+  ansible.builtin.debug:
+    var: full_sync_result.stdout
+
+roles/keycloak_saml_federation/tasks/validate.yml
+
+- name: Validate realm exists
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get realms/{{ keycloak_realm }}
+  register: validate_realm
+  changed_when: false
+
+- name: Validate LDAP provider exists
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get components/{{ keycloak_ldap_provider_id }} -r {{ keycloak_realm }}
+  register: validate_ldap_provider
+  changed_when: false
+
+- name: Display Keycloak SAML IdP metadata URL
+  ansible.builtin.debug:
+    msg: "{{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml/descriptor"
+
+- name: List realm users
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get users -r {{ keycloak_realm }} --fields username,email,firstName,lastName
+  register: validate_users
+  changed_when: false
+
+- name: Show imported users
+  ansible.builtin.debug:
+    var: validate_users.stdout
+
+
+⸻
+
+15) Direct kcadm.sh command examples
+
+These are the same operations in raw command form.
+
+Login
+
+/opt/keycloak/bin/kcadm.sh config credentials \
+  --server https://server2.example.com \
+  --realm master \
+  --user admin \
+  --password 'SuperSecretAdminPassword'
+
+Create realm
+
+/opt/keycloak/bin/kcadm.sh create realms \
+  -s realm=corp \
+  -s enabled=true
+
+Create LDAP provider
+
+/opt/keycloak/bin/kcadm.sh create components -r corp \
+  -s name=freeipa-ldap \
+  -s providerId=ldap \
+  -s providerType=org.keycloak.storage.UserStorageProvider \
+  -s parentId=corp \
+  -s 'config.enabled=["true"]' \
+  -s 'config.priority=["0"]' \
+  -s 'config.editMode=["READ_ONLY"]' \
+  -s 'config.importEnabled=["true"]' \
+  -s 'config.syncRegistrations=["false"]' \
+  -s 'config.vendor=["other"]' \
+  -s 'config.connectionUrl=["ldaps://server1.example.com:636"]' \
+  -s 'config.usersDn=["cn=users,cn=accounts,dc=example,dc=com"]' \
+  -s 'config.usernameLDAPAttribute=["uid"]' \
+  -s 'config.rdnLDAPAttribute=["uid"]' \
+  -s 'config.uuidLDAPAttribute=["ipaUniqueID"]' \
+  -s 'config.userObjectClasses=["top,person,organizationalPerson,inetOrgPerson"]' \
+  -s 'config.authType=["simple"]' \
+  -s 'config.bindDn=["uid=keycloak-bind,cn=sysaccounts,cn=etc,dc=example,dc=com"]' \
+  -s 'config.bindCredential=["SuperSecretBindPassword"]' \
+  -s 'config.searchScope=["2"]' \
+  -s 'config.pagination=["true"]'
+
+Create full-name LDAP mapper
+
+/opt/keycloak/bin/kcadm.sh create components -r corp \
+  -s name=full-name \
+  -s providerId=full-name-ldap-mapper \
+  -s providerType=org.keycloak.storage.ldap.mappers.LDAPStorageMapper \
+  -s parentId=<LDAP_PROVIDER_ID> \
+  -s 'config."ldap.full.name.attribute"=["cn"]' \
+  -s 'config."read.only"=["true"]' \
+  -s 'config."write.only"=["false"]'
+
+Create group LDAP mapper
+
+The Keycloak admin guide shows this mapper type and its key config fields under the components endpoint.  ￼
+
+/opt/keycloak/bin/kcadm.sh create components -r corp \
+  -s name=freeipa-groups \
+  -s providerId=group-ldap-mapper \
+  -s providerType=org.keycloak.storage.ldap.mappers.LDAPStorageMapper \
+  -s parentId=<LDAP_PROVIDER_ID> \
+  -s 'config."groups.dn"=["cn=groups,cn=accounts,dc=example,dc=com"]' \
+  -s 'config."group.name.ldap.attribute"=["cn"]' \
+  -s 'config."group.object.classes"=["groupOfNames"]' \
+  -s 'config."membership.ldap.attribute"=["member"]' \
+  -s 'config."membership.attribute.type"=["DN"]' \
+  -s 'config.mode=["LDAP_ONLY"]' \
+  -s 'config."user.roles.retrieve.strategy"=["LOAD_GROUPS_BY_MEMBER_ATTRIBUTE"]' \
+  -s 'config."preserve.group.inheritance"=["true"]'
+
+Create SAML client
+
+/opt/keycloak/bin/kcadm.sh create clients -r corp \
+  -s clientId='https://app1.example.com/saml' \
+  -s name='app1-saml' \
+  -s enabled=true \
+  -s protocol=saml \
+  -s baseUrl='https://app1.example.com' \
+  -s 'redirectUris=["https://app1.example.com/*"]' \
+  -s 'attributes."saml.assertion.signature"="true"' \
+  -s 'attributes."saml.server.signature"="true"' \
+  -s 'attributes."saml.force.post.binding"="true"' \
+  -s 'attributes."saml.authnstatement"="true"' \
+  -s 'attributes."saml_assertion_consumer_url_post"="https://app1.example.com/saml/acs"'
+
+Keycloak IdP metadata URL
+
+https://server2.example.com/realms/corp/protocol/saml/descriptor
+
+That realm SAML descriptor path is how Keycloak exposes SAML metadata for integration.  ￼
+
+⸻
+
+16) What to improve next
+
+The skeleton above works as a starting point, but for production I would add:
+	•	idempotent checks before creating mappers and clients
+	•	CA import into Keycloak truststore
+	•	service restart handler after truststore changes
+	•	better JSON parsing with community.general.json_query
+	•	optional Kerberos auth later
+	•	client metadata import when SP metadata XML is available
+	•	secret handling only through vault, never plain vars
+
+⸻
+
+17) Recommended rollout order
+
+Run in this order:
+
+ansible-playbook -i inventory/hosts.yml playbooks/freeipa_prep.yml --ask-vault-pass
+ansible-playbook -i inventory/hosts.yml playbooks/keycloak_config.yml --ask-vault-pass
+
+Then test:
+	1.	log into Keycloak realm with a FreeIPA user
+	2.	verify users and groups appear in Keycloak
+	3.	open the pilot SAML app
+	4.	confirm SAML assertion includes email, username, firstName, lastName, groups
+
+⸻
+
+18) Practical note
+
+Some exact SAML client attributes can vary slightly across Keycloak versions and app requirements, but the overall structure here is aligned with current Keycloak admin guidance for LDAP storage, LDAP mappers, and SAML application integration.  ￼
+
+If you want, next I’ll turn this into a fully cleaned production-ready role with:
+idempotent checks, retries, handlers, and vault-ready defaults.

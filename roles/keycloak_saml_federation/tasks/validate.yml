@@ -1,0 +1,35 @@
+---
+- name: Validate realm exists
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get realms/{{ keycloak_realm }}
+  register: validate_realm
+  changed_when: false
+
+- name: Validate LDAP provider exists
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get components/{{ keycloak_ldap_provider_id }}
+    -r {{ keycloak_realm }}
+  register: validate_ldap_provider
+  changed_when: false
+
+- name: List imported users (first 20)
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get users -r {{ keycloak_realm }}
+    --fields username,email,firstName,lastName
+    --limit 20
+  register: validate_users
+  changed_when: false
+
+- name: Show imported users
+  ansible.builtin.debug:
+    var: validate_users.stdout
+
+- name: Print Keycloak SAML IdP metadata URL
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Keycloak SAML IdP Metadata URL:"
+      - "  {{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml/descriptor"
+      - ""
+      - "Use this URL to configure SonarQube (or any SAML SP) as the IdP metadata source."
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

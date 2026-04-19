@@ -1,0 +1,93 @@
+---
+# SSH credentials (resolved from vault)
+ansible_user:            "{{ vault_ansible_user }}"
+ansible_password:        "{{ vault_ansible_password }}"
+ansible_become_password: "{{ vault_ansible_become_password }}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FreeIPA settings
+# !! UPDATE freeipa_domain / freeipa_realm / freeipa_base_dn to match your
+#    actual FreeIPA installation before running any playbook !!
+# ─────────────────────────────────────────────────────────────────────────────
+freeipa_domain:   "freeipa.local"         # e.g. ipa.local, example.com
+freeipa_realm:    "FREEIPA.LOCAL"         # uppercase Kerberos realm
+freeipa_base_dn:  "dc=freeipa,dc=local"   # derived from freeipa_domain
+
+freeipa_users_dn:  "cn=users,cn=accounts,{{ freeipa_base_dn }}"
+freeipa_groups_dn: "cn=groups,cn=accounts,{{ freeipa_base_dn }}"
+
+freeipa_bind_uid:      keycloak-bind
+freeipa_bind_dn:       "uid={{ freeipa_bind_uid }},cn=sysaccounts,cn=etc,{{ freeipa_base_dn }}"
+freeipa_bind_password: "{{ vault_freeipa_bind_password }}"
+
+freeipa_ldap_url:              "ldaps://freeipa.local:636"
+freeipa_ca_cert_path:          /etc/ipa/ca.crt
+freeipa_keycloak_ca_export_path: /tmp/freeipa-ca.crt
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Keycloak settings
+# ─────────────────────────────────────────────────────────────────────────────
+keycloak_base_url:    "https://keycloak.local"   # public URL (used in SAML metadata, client config)
+keycloak_kcadm_url:   "http://localhost:8080"    # internal URL used by kcadm.sh on the Keycloak host
+keycloak_admin_realm: master
+keycloak_realm:       ipa
+keycloak_admin_user:  admin
+keycloak_admin_password: "{{ vault_keycloak_admin_password }}"
+keycloak_home:        /opt/keycloak-22.0.5
+keycloak_kcadm:       "{{ keycloak_home }}/bin/kcadm.sh"
+keycloak_tmp_dir:     /tmp/keycloak-ansible
+
+# LDAP federation
+keycloak_ldap_provider_name: freeipa-ldap
+keycloak_ldap_username_attr: uid
+keycloak_ldap_rdn_attr:      uid
+keycloak_ldap_uuid_attr:     ipaUniqueID
+keycloak_ldap_user_object_classes:
+  - top
+  - person
+  - organizationalPerson
+  - inetOrgPerson
+
+keycloak_ldap_bind_password: "{{ vault_freeipa_bind_password }}"
+
+# Truststore for LDAPS outbound connections
+keycloak_truststore_path:     "{{ keycloak_home }}/conf/truststore.jks"
+keycloak_truststore_password: "{{ vault_keycloak_truststore_password }}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SAML clients
+# ─────────────────────────────────────────────────────────────────────────────
+keycloak_saml_clients:
+  - name:       sonarqube-saml
+    client_id:  sonarqube
+    acs_url:    "https://sonar.local/oauth2/callback/saml"
+    admin_url:  "https://sonar.local"
+    base_url:   "https://sonar.local"
+    redirect_uris:
+      - "https://sonar.local/*"
+    nameid_format:           email
+    nameid_user_attribute:   email
+    sign_documents:          "true"
+    sign_assertions:         "true"
+    force_post_binding:      "true"
+    include_authnstatement:  "true"
+    # Attribute mappers: user model property → SAML attribute name
+    attributes:
+      - { property: username, saml_name: username, friendly_name: username }
+      - { property: email,    saml_name: email,    friendly_name: email    }
+      - { property: username, saml_name: name,     friendly_name: name     }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SonarQube settings
+# ─────────────────────────────────────────────────────────────────────────────
+sonarqube_url:           "https://sonar.local"
+sonarqube_admin_token:   "{{ vault_sonarqube_admin_token }}"
+
+# These must match the SAML client / attribute names configured in Keycloak above
+sonarqube_saml_provider_name:   "FreeIPA via Keycloak"
+sonarqube_saml_application_id:  "sonarqube"
+sonarqube_saml_user_login_attr:   "username"
+sonarqube_saml_user_name_attr:    "username"
+sonarqube_saml_user_email_attr:   "email"
+sonarqube_saml_group_attr:        "groups"
+sonarqube_saml_allow_signup:      "true"

@@ -1,0 +1,4 @@
+---
+- import_tasks: bind_account.yml
+- import_tasks: export_ca.yml
+- import_tasks: validate.yml

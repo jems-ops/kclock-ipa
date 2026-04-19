@@ -1,0 +1,21 @@
+---
+- name: Check FreeIPA CA cert exists
+  ansible.builtin.stat:
+    path: "{{ freeipa_ca_cert_path }}"
+  register: ipa_ca_stat
+
+- name: Fail if FreeIPA CA cert is missing
+  ansible.builtin.fail:
+    msg: "FreeIPA CA cert not found at {{ freeipa_ca_cert_path }}. Is this host enrolled in FreeIPA?"
+  when: not ipa_ca_stat.stat.exists
+
+- name: Copy FreeIPA CA cert to export path
+  ansible.builtin.copy:
+    src: "{{ freeipa_ca_cert_path }}"
+    dest: "{{ freeipa_keycloak_ca_export_path }}"
+    remote_src: true
+    mode: "0644"
+
+- name: Confirm CA cert exported
+  ansible.builtin.debug:
+    msg: "FreeIPA CA cert available at {{ freeipa_keycloak_ca_export_path }} on {{ inventory_hostname }}"

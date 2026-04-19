@@ -1,0 +1,84 @@
+---
+# All settings are pushed via the SonarQube /api/settings/set endpoint.
+# Authentication uses the admin token (Basic auth: token + empty password).
+
+- name: Set SonarQube server base URL (required for correct SAML ACS URL)
+  ansible.builtin.uri:
+    url: "{{ sonarqube_url }}/api/settings/set"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      key:   sonar.core.serverBaseURL
+      value: "{{ sonarqube_url }}"
+    url_username: "{{ sonarqube_admin_token }}"
+    url_password: ""
+    force_basic_auth: true
+    validate_certs: "{{ sonarqube_validate_certs }}"
+    status_code: 204
+
+- name: Define SonarQube SAML settings
+  ansible.builtin.set_fact:
+    sonarqube_saml_settings:
+      - key: sonar.auth.saml.applicationId
+        value: "{{ sonarqube_saml_application_id }}"
+        sensitive: false
+      - key: sonar.auth.saml.providerName
+        value: "{{ sonarqube_saml_provider_name }}"
+        sensitive: false
+      - key: sonar.auth.saml.providerId
+        # Keycloak SAML entity ID = base URL + /realms/<realm>
+        value: "{{ keycloak_base_url }}/realms/{{ keycloak_realm }}"
+        sensitive: false
+      - key: sonar.auth.saml.loginUrl
+        value: "{{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml"
+        sensitive: false
+      - key: sonar.auth.saml.certificate.secured
+        value: "{{ keycloak_signing_cert }}"
+        sensitive: true
+      - key: sonar.auth.saml.user.login
+        value: "{{ sonarqube_saml_user_login_attr }}"
+        sensitive: false
+      - key: sonar.auth.saml.user.name
+        value: "{{ sonarqube_saml_user_name_attr }}"
+        sensitive: false
+      - key: sonar.auth.saml.user.email
+        value: "{{ sonarqube_saml_user_email_attr }}"
+        sensitive: false
+      - key: sonar.auth.saml.group.name
+        value: "{{ sonarqube_saml_group_attr }}"
+        sensitive: false
+      - key: sonar.auth.saml.allowUsersToSignUp
+        value: "{{ sonarqube_saml_allow_signup }}"
+        sensitive: false
+
+- name: Apply SonarQube SAML settings
+  ansible.builtin.uri:
+    url: "{{ sonarqube_url }}/api/settings/set"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      key:   "{{ item.key }}"
+      value: "{{ item.value }}"
+    url_username: "{{ sonarqube_admin_token }}"
+    url_password: ""
+    force_basic_auth: true
+    validate_certs: "{{ sonarqube_validate_certs }}"
+    status_code: 204
+  loop: "{{ sonarqube_saml_settings }}"
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: "{{ item.sensitive }}"
+
+- name: Enable SonarQube SAML authentication
+  ansible.builtin.uri:
+    url: "{{ sonarqube_url }}/api/settings/set"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      key:   sonar.auth.saml.enabled
+      value: "true"
+    url_username: "{{ sonarqube_admin_token }}"
+    url_password: ""
+    force_basic_auth: true
+    validate_certs: "{{ sonarqube_validate_certs }}"
+    status_code: 204

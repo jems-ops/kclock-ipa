@@ -1,0 +1,5 @@
+---
+keycloak_tmp_dir:             /tmp/keycloak-ansible
+keycloak_admin_password:      "{{ vault_keycloak_admin_password }}"
+keycloak_ldap_bind_password:  "{{ vault_freeipa_bind_password }}"
+keycloak_truststore_password: "{{ vault_keycloak_truststore_password }}"

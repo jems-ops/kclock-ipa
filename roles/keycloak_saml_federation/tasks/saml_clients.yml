@@ -1,0 +1,32 @@
+---
+- name: Check which SAML clients already exist
+  ansible.builtin.shell: >
+    {{ keycloak_kcadm }} get clients -r {{ keycloak_realm }}
+    -q clientId={{ item.client_id }}
+    | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d))'
+  register: client_exists_check
+  changed_when: false
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Render SAML client JSON payloads (for missing clients only)
+  ansible.builtin.template:
+    src: saml-client.json.j2
+    dest: "{{ keycloak_tmp_dir }}/client-{{ item.item.name }}.json"
+    mode: "0644"
+  loop: "{{ client_exists_check.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.stdout | trim == '0'
+
+- name: Create missing SAML clients
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create clients -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/client-{{ item.item.name }}.json
+  loop: "{{ client_exists_check.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.stdout | trim == '0'
+  register: client_create
+  changed_when: client_create.rc == 0

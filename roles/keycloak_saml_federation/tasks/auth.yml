@@ -1,0 +1,11 @@
+---
+- name: Authenticate kcadm against Keycloak master realm
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} config credentials
+    --server {{ keycloak_kcadm_url }}
+    --realm {{ keycloak_admin_realm }}
+    --user {{ keycloak_admin_user }}
+    --password {{ keycloak_admin_password }}
+  register: kcadm_auth
+  changed_when: false
+  no_log: true

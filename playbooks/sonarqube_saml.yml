@@ -1,0 +1,15 @@
+---
+# Configures SonarQube SAML authentication via the SonarQube REST API.
+# Runs on localhost (no SSH to SonarQube needed — uses HTTP API only).
+#
+# Prerequisite: run keycloak_config.yml first so the SAML client and realm exist.
+
+- name: Configure SonarQube SAML settings
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars:
+    ansible_become: false
+  roles:
+    - sonarqube_saml_config

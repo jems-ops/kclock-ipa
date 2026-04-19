@@ -1,0 +1,4 @@
+---
+- import_tasks: retrieve_cert.yml
+- import_tasks: configure_saml.yml
+- import_tasks: validate.yml
