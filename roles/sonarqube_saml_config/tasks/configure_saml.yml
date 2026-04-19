@@ -1,84 +1,52 @@
 ---
-# All settings are pushed via the SonarQube /api/settings/set endpoint.
-# Authentication uses the admin token (Basic auth: token + empty password).
+# Write SAML configuration directly to sonar.properties — more reliable than the API
+# for SonarQube 10.x, especially for signUpEnabled and cert settings.
 
-- name: Set SonarQube server base URL (required for correct SAML ACS URL)
-  ansible.builtin.uri:
-    url: "{{ sonarqube_url }}/api/settings/set"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      key:   sonar.core.serverBaseURL
-      value: "{{ sonarqube_url }}"
-    url_username: "{{ sonarqube_admin_token }}"
-    url_password: ""
-    force_basic_auth: true
-    validate_certs: "{{ sonarqube_validate_certs }}"
-    status_code: 204
+- name: Backup sonar.properties before changes
+  ansible.builtin.copy:
+    src: "{{ sonarqube_home_path }}/conf/sonar.properties"
+    dest: "{{ sonarqube_home_path }}/conf/sonar.properties.bak"
+    remote_src: true
+    mode: "0640"
 
-- name: Define SonarQube SAML settings
-  ansible.builtin.set_fact:
-    sonarqube_saml_settings:
-      - key: sonar.auth.saml.applicationId
-        value: "{{ sonarqube_saml_application_id }}"
-        sensitive: false
-      - key: sonar.auth.saml.providerName
-        value: "{{ sonarqube_saml_provider_name }}"
-        sensitive: false
-      - key: sonar.auth.saml.providerId
-        # Keycloak SAML entity ID = base URL + /realms/<realm>
-        value: "{{ keycloak_base_url }}/realms/{{ keycloak_realm }}"
-        sensitive: false
-      - key: sonar.auth.saml.loginUrl
-        value: "{{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml"
-        sensitive: false
-      - key: sonar.auth.saml.certificate.secured
-        value: "{{ keycloak_signing_cert }}"
-        sensitive: true
-      - key: sonar.auth.saml.user.login
-        value: "{{ sonarqube_saml_user_login_attr }}"
-        sensitive: false
-      - key: sonar.auth.saml.user.name
-        value: "{{ sonarqube_saml_user_name_attr }}"
-        sensitive: false
-      - key: sonar.auth.saml.user.email
-        value: "{{ sonarqube_saml_user_email_attr }}"
-        sensitive: false
-      - key: sonar.auth.saml.group.name
-        value: "{{ sonarqube_saml_group_attr }}"
-        sensitive: false
-      - key: sonar.auth.saml.allowUsersToSignUp
-        value: "{{ sonarqube_saml_allow_signup }}"
-        sensitive: false
+- name: Set SonarQube base URL (ensures ACS URL is correct in SAMLRequests)
+  ansible.builtin.lineinfile:
+    path: "{{ sonarqube_home_path }}/conf/sonar.properties"
+    regexp: '^sonar\.core\.serverBaseURL'
+    line: "sonar.core.serverBaseURL={{ sonarqube_url }}"
+    state: present
 
-- name: Apply SonarQube SAML settings
-  ansible.builtin.uri:
-    url: "{{ sonarqube_url }}/api/settings/set"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      key:   "{{ item.key }}"
-      value: "{{ item.value }}"
-    url_username: "{{ sonarqube_admin_token }}"
-    url_password: ""
-    force_basic_auth: true
-    validate_certs: "{{ sonarqube_validate_certs }}"
-    status_code: 204
-  loop: "{{ sonarqube_saml_settings }}"
-  loop_control:
-    label: "{{ item.key }}"
-  no_log: "{{ item.sensitive }}"
+- name: Remove any existing SAML lines (clean re-apply)
+  ansible.builtin.lineinfile:
+    path: "{{ sonarqube_home_path }}/conf/sonar.properties"
+    regexp: '^sonar\.auth\.saml\.'
+    state: absent
 
-- name: Enable SonarQube SAML authentication
-  ansible.builtin.uri:
-    url: "{{ sonarqube_url }}/api/settings/set"
-    method: POST
-    body_format: form-urlencoded
-    body:
-      key:   sonar.auth.saml.enabled
-      value: "true"
-    url_username: "{{ sonarqube_admin_token }}"
-    url_password: ""
-    force_basic_auth: true
-    validate_certs: "{{ sonarqube_validate_certs }}"
-    status_code: 204
+- name: Write SAML configuration block to sonar.properties
+  ansible.builtin.blockinfile:
+    path: "{{ sonarqube_home_path }}/conf/sonar.properties"
+    marker: "# {mark} ANSIBLE MANAGED - SAML"
+    block: |
+      sonar.auth.saml.enabled=true
+      sonar.auth.saml.applicationId={{ sonarqube_saml_application_id }}
+      sonar.auth.saml.providerName={{ sonarqube_saml_provider_name }}
+      sonar.auth.saml.providerId={{ keycloak_base_url }}/realms/{{ keycloak_realm }}
+      sonar.auth.saml.loginUrl={{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml
+      sonar.auth.saml.user.login={{ sonarqube_saml_user_login_attr }}
+      sonar.auth.saml.user.name={{ sonarqube_saml_user_name_attr }}
+      sonar.auth.saml.user.email={{ sonarqube_saml_user_email_attr }}
+      sonar.auth.saml.group.name={{ sonarqube_saml_group_attr }}
+      sonar.auth.saml.user.signUpEnabled={{ sonarqube_saml_allow_signup }}
+    state: present
+  notify: restart sonarqube
+
+# Certificate must be on a single line — use lineinfile after the block
+- name: Write Keycloak signing certificate to sonar.properties
+  ansible.builtin.lineinfile:
+    path: "{{ sonarqube_home_path }}/conf/sonar.properties"
+    regexp: '^sonar\.auth\.saml\.certificate\.secured='
+    line: "sonar.auth.saml.certificate.secured={{ keycloak_signing_cert }}"
+    insertafter: "# END ANSIBLE MANAGED - SAML"
+    state: present
+  no_log: true
+  notify: restart sonarqube

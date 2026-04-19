@@ -1,28 +1,21 @@
 ---
-- name: Read back SonarQube SAML settings
-  ansible.builtin.uri:
-    url: "{{ sonarqube_url }}/api/settings/values?keys=sonar.auth.saml.enabled,sonar.auth.saml.applicationId,sonar.auth.saml.providerName,sonar.auth.saml.providerId,sonar.auth.saml.loginUrl"
-    method: GET
-    url_username: "{{ sonarqube_admin_token }}"
-    url_password: ""
-    force_basic_auth: true
-    validate_certs: "{{ sonarqube_validate_certs }}"
-    return_content: true
-  register: sonarqube_saml_readback
+- name: Verify SAML settings are present in sonar.properties
+  ansible.builtin.command: >
+    grep -c 'sonar.auth.saml.enabled=true'
+    {{ sonarqube_home_path }}/conf/sonar.properties
+  register: saml_verify
+  changed_when: false
+  failed_when: saml_verify.rc != 0
 
-- name: Display SonarQube SAML configuration
+- name: Display completion message
   ansible.builtin.debug:
     msg:
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      - "SonarQube SAML settings applied successfully."
+      - "SonarQube SAML settings written to sonar.properties."
       - ""
       - "To test SSO:"
       - "  1. Open {{ sonarqube_url }} in a browser"
       - "  2. Click 'Log in with {{ sonarqube_saml_provider_name }}'"
-      - "  3. Authenticate with a FreeIPA user at Keycloak"
+      - "  3. Authenticate with a FreeIPA user via Keycloak"
       - "  4. Verify you are logged in to SonarQube"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-- name: Show raw settings readback (for debugging)
-  ansible.builtin.debug:
-    var: sonarqube_saml_readback.json

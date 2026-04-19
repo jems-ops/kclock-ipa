@@ -12,13 +12,12 @@
   register: validate_ldap_provider
   changed_when: false
 
-- name: List imported users (first 20)
+- name: List imported users
   ansible.builtin.command: >
     {{ keycloak_kcadm }} get users -r {{ keycloak_realm }}
-    --fields username,email,firstName,lastName
-    --limit 20
   register: validate_users
   changed_when: false
+  failed_when: false
 
 - name: Show imported users
   ansible.builtin.debug:

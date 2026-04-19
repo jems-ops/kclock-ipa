@@ -4,7 +4,7 @@ profile: min
 exclude_paths:
   - .cache/
   - .pytest_cache/
-  - inventory/group_vars/all/vault.yml
+  - group_vars/all/vault.yml
 
 skip_list:
   - yaml[line-length]

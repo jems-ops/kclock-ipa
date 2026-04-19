@@ -1,8 +1,8 @@
 .PHONY: help lint freeipa-prep keycloak-config sonarqube-saml site \
         vault-encrypt vault-edit vault-view check
 
-INVENTORY   := inventory/hosts.yml
-VAULT_FILE  := inventory/group_vars/all/vault.yml
+INVENTORY   := inventory
+VAULT_FILE  := group_vars/all/vault.yml
 
 help:
 	@echo "Usage: make <target>"

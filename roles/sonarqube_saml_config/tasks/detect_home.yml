@@ -1,0 +1,22 @@
+---
+- name: Auto-detect SonarQube installation directory
+  ansible.builtin.find:
+    paths: /opt
+    patterns: "sonarqube*"
+    file_type: directory
+  register: sonarqube_dirs
+  when: sonarqube_home == ""
+
+- name: Set SonarQube home from auto-detection
+  ansible.builtin.set_fact:
+    sonarqube_home_path: "{{ (sonarqube_dirs.files | sort(attribute='path') | last).path }}"
+  when: sonarqube_home == ""
+
+- name: Set SonarQube home from variable
+  ansible.builtin.set_fact:
+    sonarqube_home_path: "{{ sonarqube_home }}"
+  when: sonarqube_home != ""
+
+- name: Confirm SonarQube home
+  ansible.builtin.debug:
+    msg: "SonarQube home: {{ sonarqube_home_path }}"

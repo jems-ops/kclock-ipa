@@ -1,4 +1,5 @@
 ---
+# Fetch Keycloak metadata from the control machine using the resolved Keycloak base URL
 - name: Fetch Keycloak SAML metadata
   ansible.builtin.uri:
     url: "{{ keycloak_saml_metadata_url }}"
@@ -8,25 +9,34 @@
   retries: 3
   delay: 5
   until: keycloak_saml_metadata.status == 200
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
 
-- name: Save SAML metadata to temp file
+- name: Save SAML metadata to temp file on controller
   ansible.builtin.copy:
     content: "{{ keycloak_saml_metadata.content }}"
     dest: /tmp/keycloak-saml-metadata.xml
     mode: "0644"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
 
 - name: Extract signing certificate from SAML metadata
   ansible.builtin.shell: >-
     python3 -c "import re; xml=open('/tmp/keycloak-saml-metadata.xml').read(); m=re.search(r'<ds:X509Certificate>([^<]+)</ds:X509Certificate>',xml); print(m.group(1).strip() if m else '')"
   register: keycloak_cert_extract
   changed_when: false
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
 
 - name: Fail if signing certificate could not be extracted
   ansible.builtin.fail:
-    msg: >
-      Could not extract signing certificate from Keycloak SAML metadata at
-      {{ keycloak_saml_metadata_url }}.
-      Ensure Keycloak is running and the '{{ keycloak_realm }}' realm exists.
+    msg: "Could not extract signing cert from {{ keycloak_saml_metadata_url }}. Is the '{{ keycloak_realm }}' realm running?"
   when: keycloak_cert_extract.stdout | trim | length == 0
 
 - name: Store signing certificate as fact

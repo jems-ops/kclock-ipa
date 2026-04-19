@@ -1,0 +1,19 @@
+# Ansible Inventory for Keycloak + FreeIPA + SonarQube Automation Project
+# Rocky Linux 9 hosts - credentials managed via vault
+# Hostnames represent DNS names (after reverse proxy where applicable)
+
+[freeipa]
+freeipa.local ansible_host=192.168.56.14
+
+[keycloak]
+keycloak.local ansible_host=192.168.56.12
+
+[sonarqube]
+sonar.local ansible_host=192.168.56.18
+
+# Group variables for all hosts
+[all:vars]
+ansible_become=yes
+ansible_become_method=sudo
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+ansible_python_interpreter=/usr/bin/python3

@@ -9,13 +9,6 @@
   ansible.builtin.set_fact:
     keycloak_ldap_provider_present: "{{ keycloak_ldap_provider_name in realm_components_raw.stdout }}"
 
-- name: Render LDAP provider JSON payload
-  ansible.builtin.template:
-    src: ldap-provider.json.j2
-    dest: "{{ keycloak_tmp_dir }}/ldap-provider.json"
-    mode: "0644"
-  when: not keycloak_ldap_provider_present
-
 # Keycloak requires the realm UUID (not name) as parentId for sync to work
 - name: Get realm UUID
   ansible.builtin.shell: >
@@ -23,12 +16,16 @@
     | python3 -c 'import sys,json; print(json.load(sys.stdin)["id"])'
   register: keycloak_realm_uuid_cmd
   changed_when: false
-  when: not keycloak_ldap_provider_present
 
 - name: Set realm UUID fact
   ansible.builtin.set_fact:
     keycloak_realm_uuid: "{{ keycloak_realm_uuid_cmd.stdout | trim }}"
-  when: not keycloak_ldap_provider_present
+
+- name: Render LDAP provider JSON payload
+  ansible.builtin.template:
+    src: ldap-provider.json.j2
+    dest: "{{ keycloak_tmp_dir }}/ldap-provider.json"
+    mode: "0644"
 
 - name: Create LDAP provider component
   ansible.builtin.command: >
@@ -56,6 +53,14 @@
   ansible.builtin.fail:
     msg: "Could not retrieve ID for LDAP provider '{{ keycloak_ldap_provider_name }}' in realm '{{ keycloak_realm }}'"
   when: keycloak_ldap_provider_id | length == 0
+
+- name: Update existing LDAP provider config on rerun
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} update components/{{ keycloak_ldap_provider_id }} -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/ldap-provider.json
+  when: keycloak_ldap_provider_present
+  register: ldap_provider_update
+  changed_when: ldap_provider_update.rc == 0
 
 - name: LDAP provider status
   ansible.builtin.debug:

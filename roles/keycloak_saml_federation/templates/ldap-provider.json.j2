@@ -24,7 +24,7 @@
     "bindDn":                ["{{ freeipa_bind_dn }}"],
     "bindCredential":        ["{{ keycloak_ldap_bind_password }}"],
     "searchScope":           ["2"],
-    "useTruststoreSpi":      ["LDAPS_ONLY"],
+    "useTruststoreSpi":      ["{{ keycloak_ldap_use_truststore_spi }}"],
     "validatePasswordPolicy":["false"],
     "trustEmail":            ["true"],
     "pagination":            ["true"]

@@ -1,2 +1,6 @@
 ---
-# No handlers required — configuration is applied via REST API only
+- name: restart sonarqube
+  ansible.builtin.systemd:
+    name: sonarqube
+    state: restarted
+    daemon_reload: true

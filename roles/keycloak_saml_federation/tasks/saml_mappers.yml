@@ -28,41 +28,89 @@
   loop_control:
     label: "{{ item.name }}"
 
-- name: Create NameID mappers
-  ansible.builtin.command: >
-    {{ keycloak_kcadm }} create
-    clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models
-    -r {{ keycloak_realm }}
-    -f {{ keycloak_tmp_dir }}/nameid-{{ item.name }}.json
+- name: Check if NameID mapper already exists
+  ansible.builtin.shell: |
+    {{ keycloak_kcadm }} get clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models -r {{ keycloak_realm }} | python3 -c 'import sys,json; d=json.load(sys.stdin); match=[m["id"] for m in d if m.get("name")=="nameid"]; print(match[0] if match else "")'
+  register: nameid_mapper_existing
+  changed_when: false
   loop: "{{ keycloak_saml_clients }}"
   loop_control:
     label: "{{ item.name }}"
-  register: nameid_mapper_result
-  failed_when: false
-  changed_when: nameid_mapper_result.rc == 0
+
+- name: Create NameID mapper (if missing)
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create
+    clients/{{ saml_client_ids[item.item.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/nameid-{{ item.item.name }}.json
+  when: item.stdout | trim == ''
+  loop: "{{ nameid_mapper_existing.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  register: nameid_create_result
+  failed_when: nameid_create_result.rc is defined and nameid_create_result.rc != 0
+  changed_when: nameid_create_result.rc is defined and nameid_create_result.rc == 0
+
+- name: Update NameID mapper (if exists)
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} update
+    clients/{{ saml_client_ids[item.item.name] }}/protocol-mappers/models/{{ item.stdout | trim }}
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/nameid-{{ item.item.name }}.json
+  when: item.stdout | trim != ''
+  loop: "{{ nameid_mapper_existing.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  register: nameid_update_result
+  failed_when: nameid_update_result.rc is defined and nameid_update_result.rc != 0
+  changed_when: nameid_update_result.rc is defined and nameid_update_result.rc == 0
 
 # ─── User property mappers ───────────────────────────────────────────────────
 - name: Render user property mapper payloads
   ansible.builtin.template:
     src: saml-user-property-mapper.json.j2
-    dest: "{{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.property }}.json"
+    dest: "{{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.saml_name }}.json"
     mode: "0644"
   loop: "{{ keycloak_saml_clients | subelements('attributes') }}"
   loop_control:
-    label: "{{ item.0.name }} -> {{ item.1.property }}"
+    label: "{{ item.0.name }} -> {{ item.1.saml_name }}"
 
-- name: Create user property mappers
-  ansible.builtin.command: >
-    {{ keycloak_kcadm }} create
-    clients/{{ saml_client_ids[item.0.name] }}/protocol-mappers/models
-    -r {{ keycloak_realm }}
-    -f {{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.property }}.json
+- name: Check if user property mapper already exists
+  ansible.builtin.shell: |
+    {{ keycloak_kcadm }} get clients/{{ saml_client_ids[item.0.name] }}/protocol-mappers/models -r {{ keycloak_realm }} | python3 -c 'import sys,json; d=json.load(sys.stdin); match=[m["id"] for m in d if m.get("name")=="{{ item.1.saml_name }}"]; print(match[0] if match else "")'
+  register: user_prop_mapper_existing
+  changed_when: false
   loop: "{{ keycloak_saml_clients | subelements('attributes') }}"
   loop_control:
-    label: "{{ item.0.name }} -> {{ item.1.property }}"
-  register: user_prop_mapper_result
-  failed_when: false
-  changed_when: user_prop_mapper_result.rc == 0
+    label: "{{ item.0.name }} -> {{ item.1.saml_name }}"
+
+- name: Create user property mapper (if missing)
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create
+    clients/{{ saml_client_ids[item.item.0.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/{{ item.item.0.name }}-{{ item.item.1.saml_name }}.json
+  when: item.stdout | trim == ''
+  loop: "{{ user_prop_mapper_existing.results }}"
+  loop_control:
+    label: "{{ item.item.0.name }} -> {{ item.item.1.saml_name }}"
+  register: user_prop_create_result
+  failed_when: user_prop_create_result.rc is defined and user_prop_create_result.rc != 0
+  changed_when: user_prop_create_result.rc is defined and user_prop_create_result.rc == 0
+
+- name: Update user property mapper (if exists)
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} update
+    clients/{{ saml_client_ids[item.item.0.name] }}/protocol-mappers/models/{{ item.stdout | trim }}
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/{{ item.item.0.name }}-{{ item.item.1.saml_name }}.json
+  when: item.stdout | trim != ''
+  loop: "{{ user_prop_mapper_existing.results }}"
+  loop_control:
+    label: "{{ item.item.0.name }} -> {{ item.item.1.saml_name }}"
+  register: user_prop_update_result
+  failed_when: user_prop_update_result.rc is defined and user_prop_update_result.rc != 0
+  changed_when: user_prop_update_result.rc is defined and user_prop_update_result.rc == 0
 
 # ─── Group membership mapper ─────────────────────────────────────────────────
 - name: Render group list mapper payloads
@@ -74,15 +122,39 @@
   loop_control:
     label: "{{ item.name }}"
 
-- name: Create group list mappers
-  ansible.builtin.command: >
-    {{ keycloak_kcadm }} create
-    clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models
-    -r {{ keycloak_realm }}
-    -f {{ keycloak_tmp_dir }}/groups-{{ item.name }}.json
+- name: Check if group mapper already exists
+  ansible.builtin.shell: |
+    {{ keycloak_kcadm }} get clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models -r {{ keycloak_realm }} | python3 -c 'import sys,json; d=json.load(sys.stdin); match=[m["id"] for m in d if m.get("name")=="groups"]; print(match[0] if match else "")'
+  register: group_mapper_existing
+  changed_when: false
   loop: "{{ keycloak_saml_clients }}"
   loop_control:
     label: "{{ item.name }}"
-  register: group_mapper_result
-  failed_when: false
-  changed_when: group_mapper_result.rc == 0
+
+- name: Create group list mapper (if missing)
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create
+    clients/{{ saml_client_ids[item.item.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/groups-{{ item.item.name }}.json
+  when: item.stdout | trim == ''
+  loop: "{{ group_mapper_existing.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  register: group_create_result
+  failed_when: group_create_result.rc is defined and group_create_result.rc != 0
+  changed_when: group_create_result.rc is defined and group_create_result.rc == 0
+
+- name: Update group list mapper (if exists)
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} update
+    clients/{{ saml_client_ids[item.item.name] }}/protocol-mappers/models/{{ item.stdout | trim }}
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/groups-{{ item.item.name }}.json
+  when: item.stdout | trim != ''
+  loop: "{{ group_mapper_existing.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  register: group_update_result
+  failed_when: group_update_result.rc is defined and group_update_result.rc != 0
+  changed_when: group_update_result.rc is defined and group_update_result.rc == 0

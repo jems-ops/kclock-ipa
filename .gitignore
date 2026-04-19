@@ -3,9 +3,13 @@
 .ansible/
 ansible.log
 
-# Vault password - never commit
+# Vault password - NEVER commit
 .vault_pass
+*.vault_pass
 vault_pass.txt
+
+# Vault secrets file (only the .example template should be committed)
+group_vars/all/vault.yml
 
 # Python
 __pycache__/
@@ -51,3 +55,12 @@ id_ed25519*
 *.orig
 local_settings.yml
 local_vars.yml
+
+# Local inventory overrides (never commit real server IPs/creds)
+local.hosts.yml
+local_inventory*
+
+# Runtime artefacts from playbooks
+/tmp/keycloak-saml-metadata.xml
+/tmp/freeipa-ca.crt
+ansible.log
