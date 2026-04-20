@@ -57,6 +57,7 @@
     clients/{{ saml_client_ids[item.item.name] }}/protocol-mappers/models/{{ item.stdout | trim }}
     -r {{ keycloak_realm }}
     -f {{ keycloak_tmp_dir }}/nameid-{{ item.item.name }}.json
+    -s id={{ item.stdout | trim }}
   when: item.stdout | trim != ''
   loop: "{{ nameid_mapper_existing.results }}"
   loop_control:
@@ -104,6 +105,7 @@
     clients/{{ saml_client_ids[item.item.0.name] }}/protocol-mappers/models/{{ item.stdout | trim }}
     -r {{ keycloak_realm }}
     -f {{ keycloak_tmp_dir }}/{{ item.item.0.name }}-{{ item.item.1.saml_name }}.json
+    -s id={{ item.stdout | trim }}
   when: item.stdout | trim != ''
   loop: "{{ user_prop_mapper_existing.results }}"
   loop_control:
@@ -151,6 +153,7 @@
     clients/{{ saml_client_ids[item.item.name] }}/protocol-mappers/models/{{ item.stdout | trim }}
     -r {{ keycloak_realm }}
     -f {{ keycloak_tmp_dir }}/groups-{{ item.item.name }}.json
+    -s id={{ item.stdout | trim }}
   when: item.stdout | trim != ''
   loop: "{{ group_mapper_existing.results }}"
   loop_control:

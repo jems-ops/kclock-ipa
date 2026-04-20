@@ -1,6 +1,6 @@
 ---
 # Configures Keycloak for FreeIPA LDAP federation and SonarQube SAML SSO:
-#   1. Creates the 'ipa' realm
+#   1. Uses the built-in 'master' realm (deletes the legacy 'ipa' realm if present)
 #   2. Imports FreeIPA CA into the Keycloak truststore (for LDAPS)
 #   3. Configures LDAP user federation pointing to FreeIPA
 #   4. Sets up LDAP attribute and group mappers

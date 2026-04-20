@@ -6,13 +6,13 @@
   "config": {
     "enabled":               ["true"],
     "priority":              ["0"],
-    "fullSyncPeriod":        ["-1"],
-    "changedSyncPeriod":     ["-1"],
+    "fullSyncPeriod":        ["86400"],
+    "changedSyncPeriod":     ["3600"],
     "cachePolicy":           ["DEFAULT"],
     "batchSizeForSync":      ["1000"],
     "editMode":              ["READ_ONLY"],
     "importEnabled":         ["true"],
-    "syncRegistrations":     ["false"],
+    "syncRegistrations":     ["true"],
     "vendor":                ["other"],
     "usernameLDAPAttribute": ["{{ keycloak_ldap_username_attr }}"],
     "rdnLDAPAttribute":      ["{{ keycloak_ldap_rdn_attr }}"],
@@ -26,7 +26,7 @@
     "searchScope":           ["2"],
     "useTruststoreSpi":      ["{{ keycloak_ldap_use_truststore_spi }}"],
     "validatePasswordPolicy":["false"],
-    "trustEmail":            ["true"],
+    "trustEmail":            ["false"],
     "pagination":            ["true"]
   }
 }

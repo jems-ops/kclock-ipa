@@ -35,7 +35,8 @@ freeipa_keycloak_ca_export_path: /tmp/freeipa-ca.crt
 keycloak_base_url:    "https://{{ keycloak_hostname }}"   # public URL (used in SAML metadata, client config)
 keycloak_kcadm_url:   "http://localhost:8080"    # internal URL used by kcadm.sh on the Keycloak host
 keycloak_admin_realm: master
-keycloak_realm:       ipa
+keycloak_realm:       master
+keycloak_old_realm:   ipa
 keycloak_admin_user:  admin
 keycloak_admin_password: "{{ vault_keycloak_admin_password }}"
 keycloak_home:        /opt/keycloak-22.0.5
@@ -48,13 +49,14 @@ keycloak_ldap_username_attr: uid
 keycloak_ldap_rdn_attr:      uid
 keycloak_ldap_uuid_attr:     ipaUniqueID
 keycloak_ldap_user_object_classes:
-  - top
   - person
   - organizationalPerson
   - inetOrgPerson
+  - posixAccount
+  - krbPrincipalAux
 
 keycloak_ldap_bind_password: "{{ vault_freeipa_bind_password }}"
-keycloak_ldap_use_truststore_spi: "NEVER"
+keycloak_ldap_use_truststore_spi: "ALWAYS"
 
 # Truststore for LDAPS outbound connections
 keycloak_truststore_path:     "{{ keycloak_home }}/conf/truststore.jks"

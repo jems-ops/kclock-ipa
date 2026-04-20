@@ -1,4 +1,25 @@
 ---
+# Remove the previously-used 'ipa' realm (if present) to avoid conflicts with
+# the LDAP federation and SAML clients now configured on the 'master' realm.
+- name: Check if old realm exists
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get realms/{{ keycloak_old_realm }}
+  register: old_realm_check
+  changed_when: false
+  failed_when: false
+  when: keycloak_old_realm is defined and keycloak_old_realm != keycloak_realm
+
+- name: Delete old realm to avoid conflicts
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} delete realms/{{ keycloak_old_realm }}
+  when:
+    - keycloak_old_realm is defined
+    - keycloak_old_realm != keycloak_realm
+    - old_realm_check.rc is defined
+    - old_realm_check.rc == 0
+  register: old_realm_delete
+  changed_when: old_realm_delete.rc == 0
+
 - name: Check if realm already exists
   ansible.builtin.command: >
     {{ keycloak_kcadm }} get realms/{{ keycloak_realm }}
