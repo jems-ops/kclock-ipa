@@ -1,0 +1,65 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<hudson>
+  <disabledAdministrativeMonitors/>
+  <version>{{ jenkins_version | default('2.479') }}</version>
+  <numExecutors>2</numExecutors>
+  <mode>NORMAL</mode>
+  <useSecurity>true</useSecurity>
+  <authorizationStrategy class="hudson.security.FullControlOnceLoggedInAuthorizationStrategy">
+    <denyAnonymousReadAccess>false</denyAnonymousReadAccess>
+  </authorizationStrategy>
+  <securityRealm class="org.jenkinsci.plugins.saml.SamlSecurityRealm" plugin="saml@{{ jenkins_saml_plugin_version }}">
+    <idpMetadataConfiguration>
+      <xml>{{ keycloak_saml_metadata.content | replace('<', '&lt;') | replace('>', '&gt;') }}</xml>
+      <period>1440</period>
+    </idpMetadataConfiguration>
+    <displayNameAttributeName>{{ jenkins_saml_display_name_attr }}</displayNameAttributeName>
+    <groupsAttributeName>{{ jenkins_saml_groups_attr }}</groupsAttributeName>
+    <loginButtonText>Login with SAML SSO</loginButtonText>
+    <maximumAuthenticationLifetime>{{ jenkins_saml_maximum_authentication_lifetime }}</maximumAuthenticationLifetime>
+    <usernameAttributeName>{{ jenkins_saml_username_attr }}</usernameAttributeName>
+    <emailAttributeName>{{ jenkins_saml_email_attr }}</emailAttributeName>
+    <logoutUrl></logoutUrl>
+    <usernameCaseConversion>none</usernameCaseConversion>
+    <encryptionData/>
+    <authnContextClassRef/>
+    <maximumSessionLifetime>86400</maximumSessionLifetime>
+    <dataBindingMethod>HTTP_POST</dataBindingMethod>
+    <forceAuthn>{{ jenkins_saml_force_authentication | lower }}</forceAuthn>
+    <spEntityId>{{ jenkins_saml_sp_entity_id }}</spEntityId>
+    <advancedConfiguration>
+      <forceAuthn>{{ jenkins_saml_force_authentication | lower }}</forceAuthn>
+      <spEntityId>{{ jenkins_saml_sp_entity_id }}</spEntityId>
+      <authnRequestsSigned>false</authnRequestsSigned>
+      <wantAssertionsSigned>false</wantAssertionsSigned>
+      <signatureAlgorithm>RSA_SHA256</signatureAlgorithm>
+    </advancedConfiguration>
+  </securityRealm>
+  <disableRememberMe>false</disableRememberMe>
+  <projectNamingStrategy class="jenkins.model.ProjectNamingStrategy$DefaultProjectNamingStrategy"/>
+  <workspaceDir>${JENKINS_HOME}/workspace/${ITEM_FULL_NAME}</workspaceDir>
+  <buildsDir>${ITEM_ROOTDIR}/builds</buildsDir>
+  <jdks/>
+  <viewsTabBar class="hudson.views.DefaultViewsTabBar"/>
+  <myViewsTabBar class="hudson.views.DefaultMyViewsTabBar"/>
+  <clouds/>
+  <quietPeriod>5</quietPeriod>
+  <scmCheckoutRetryCount>0</scmCheckoutRetryCount>
+  <views>
+    <hudson.model.AllView>
+      <owner class="hudson" reference="../../.."/>
+      <name>all</name>
+      <filterExecutors>false</filterExecutors>
+      <filterQueue>false</filterQueue>
+      <properties class="hudson.model.View$PropertyList"/>
+    </hudson.model.AllView>
+  </views>
+  <primaryView>all</primaryView>
+  <slaveAgentPort>50000</slaveAgentPort>
+  <label></label>
+  <crumbIssuer class="hudson.security.csrf.DefaultCrumbIssuer">
+    <excludeClientIPFromCrumb>false</excludeClientIPFromCrumb>
+  </crumbIssuer>
+  <nodeProperties/>
+  <globalNodeProperties/>
+</hudson>

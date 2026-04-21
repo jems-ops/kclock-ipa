@@ -1,4 +1,4 @@
-.PHONY: help lint freeipa-prep keycloak-config sonarqube-saml site \
+.PHONY: help lint freeipa-prep keycloak-config sonarqube-saml jenkins-saml site \
         vault-encrypt vault-edit vault-view check
 
 INVENTORY   := inventory
@@ -12,6 +12,7 @@ help:
 	@echo "  freeipa-prep    Prepare FreeIPA bind account and export CA"
 	@echo "  keycloak-config Configure Keycloak realm, LDAP federation, SAML clients"
 	@echo "  sonarqube-saml  Push SAML config to SonarQube via API"
+	@echo "  jenkins-saml    Push SAML config to Jenkins (config.xml template + restart)"
 	@echo ""
 	@echo "Check / lint:"
 	@echo "  check           Dry-run the full site playbook"
@@ -33,6 +34,9 @@ keycloak-config:
 
 sonarqube-saml:
 	ansible-playbook -i $(INVENTORY) playbooks/sonarqube_saml.yml
+
+jenkins-saml:
+	ansible-playbook -i $(INVENTORY) playbooks/jenkins_saml.yml
 
 check:
 	ansible-playbook -i $(INVENTORY) playbooks/site.yml --check

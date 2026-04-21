@@ -1,12 +1,22 @@
 # keycloak-ipa-integration
 
-Ansible automation to configure **Keycloak + FreeIPA LDAP federation** with **SonarQube** as a SAML SSO test client.
+Ansible automation to configure **Keycloak + FreeIPA LDAP federation** with multiple SAML Service Providers (**SonarQube** and **Jenkins**) sharing one realm for single sign-on.
 
 ## Architecture
 
 ```
-User → SonarQube (SAML SP) → Keycloak (SAML IdP) → FreeIPA (LDAP identity source)
+              ┌── SonarQube (SAML SP)
+User ────────┤
+              └── Jenkins   (SAML SP)
+                        │
+                        ▼
+                Keycloak (SAML IdP, single realm)
+                        │
+                        ▼
+                FreeIPA (LDAP identity source)
 ```
+
+One FreeIPA username/password → one Keycloak realm session → any number of SAML apps.
 
 ## Servers
 
@@ -15,6 +25,7 @@ User → SonarQube (SAML SP) → Keycloak (SAML IdP) → FreeIPA (LDAP identity 
 | FreeIPA   | freeipa.local   | see inventory                     |
 | Keycloak  | keycloak.local  | see inventory                     |
 | SonarQube | sonar.local     | see inventory                     |
+| Jenkins   | jenkins.local   | see inventory                     |
 
 ## Quick Start
 
@@ -59,8 +70,18 @@ make site
 | Role                     | Target Host     | What it does                                          |
 |--------------------------|-----------------|-------------------------------------------------------|
 | `freeipa_keycloak_prep`  | freeipa.local   | Creates LDAP bind account, exports CA cert            |
-| `keycloak_saml_federation` | keycloak.local| Creates realm, LDAP federation, SonarQube SAML client |
+| `keycloak_saml_federation` | keycloak.local| Creates realm, LDAP federation, and **all** SAML clients defined in `keycloak_saml_clients` (SonarQube + Jenkins today) |
 | `sonarqube_saml_config`  | sonar.local      | Writes SAML settings into `sonar.properties` and restarts SonarQube |
+
+> **Adding another SAML app** (e.g., Artifactory, Nexus, Grafana) is a vars-only
+> change: append a new entry to `keycloak_saml_clients` in
+> `group_vars/all/main.yml` and re-run `make keycloak-config`. The role is
+> idempotent — it will create new clients and update existing ones in place.
+
+> **Jenkins-side SAML config** (installing the Jenkins SAML plugin and pointing
+> it at Keycloak's IdP metadata) is handled outside this repo by the existing
+> Jenkins provisioning role. See `docs/MANUAL-SETUP.md` Part 9 for the values to
+> plug into that configuration.
 
 ## Vault variables
 

@@ -1,0 +1,5 @@
+---
+- import_tasks: detect_home.yml
+- import_tasks: retrieve_metadata.yml
+- import_tasks: configure_saml.yml
+- import_tasks: validate.yml

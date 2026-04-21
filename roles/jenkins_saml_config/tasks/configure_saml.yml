@@ -1,0 +1,21 @@
+---
+# Write the SAML-enabled config.xml to Jenkins home, backing up the previous one.
+# Matches the SonarQube pattern: one-shot template render + handler-driven restart.
+
+- name: Backup Jenkins config.xml before changes
+  ansible.builtin.copy:
+    src: "{{ jenkins_home_path }}/config.xml"
+    dest: "{{ jenkins_home_path }}/config.xml.bak"
+    remote_src: true
+    mode: "0640"
+    owner: jenkins
+    group: jenkins
+
+- name: Render Jenkins config.xml with SAML security realm
+  ansible.builtin.template:
+    src: jenkins-saml-config.xml.j2
+    dest: "{{ jenkins_home_path }}/config.xml"
+    mode: "0644"
+    owner: jenkins
+    group: jenkins
+  notify: restart jenkins

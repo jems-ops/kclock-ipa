@@ -1,0 +1,25 @@
+---
+# Jenkins install path. Leave empty for auto-detect, or set e.g. /var/lib/jenkins.
+jenkins_home: ""
+
+# TLS validation for the controller-side metadata fetch (self-signed Keycloak in lab → false).
+jenkins_validate_certs: false
+
+# Keycloak IdP descriptor URL — fetched on the controller and embedded in config.xml.
+jenkins_saml_metadata_url: "{{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml/descriptor"
+
+# SAML attribute names — must match the Keycloak SAML client mappers in the
+# "jenkins-saml" entry of keycloak_saml_clients.
+jenkins_saml_username_attr:     "username"
+jenkins_saml_email_attr:        "email"
+jenkins_saml_groups_attr:       "groups"
+jenkins_saml_display_name_attr: "username"
+
+# Stamped into config.xml.
+jenkins_version:             "2.479"
+jenkins_saml_plugin_version: "4.595.vec7523b_5d543"
+
+# SAML behaviour.
+jenkins_saml_maximum_authentication_lifetime: 86400
+jenkins_saml_force_authentication:            false
+jenkins_saml_sp_entity_id:                    "jenkins"

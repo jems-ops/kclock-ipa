@@ -1,0 +1,38 @@
+---
+- name: Auto-detect Jenkins installation directory
+  ansible.builtin.stat:
+    path: /var/lib/jenkins
+  register: jenkins_default_home
+  when: jenkins_home == ""
+
+- name: Set Jenkins home from auto-detection
+  ansible.builtin.set_fact:
+    jenkins_home_path: /var/lib/jenkins
+  when:
+    - jenkins_home == ""
+    - jenkins_default_home.stat.exists
+    - jenkins_default_home.stat.isdir
+
+- name: Set Jenkins home from variable
+  ansible.builtin.set_fact:
+    jenkins_home_path: "{{ jenkins_home }}"
+  when: jenkins_home != ""
+
+- name: Fail if Jenkins home could not be determined
+  ansible.builtin.fail:
+    msg: "Jenkins home not found. Set 'jenkins_home' explicitly (e.g. /var/lib/jenkins)."
+  when: jenkins_home_path is not defined
+
+- name: Confirm Jenkins config.xml exists
+  ansible.builtin.stat:
+    path: "{{ jenkins_home_path }}/config.xml"
+  register: jenkins_config_stat
+
+- name: Fail if Jenkins config.xml not found
+  ansible.builtin.fail:
+    msg: "Could not find Jenkins config.xml at {{ jenkins_home_path }}/config.xml — is Jenkins installed?"
+  when: not jenkins_config_stat.stat.exists
+
+- name: Confirm Jenkins home
+  ansible.builtin.debug:
+    msg: "Jenkins home: {{ jenkins_home_path }}"

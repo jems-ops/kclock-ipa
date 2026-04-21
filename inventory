@@ -11,6 +11,9 @@ keycloak.local ansible_host=192.168.56.12
 [sonarqube]
 sonar.local ansible_host=192.168.56.18
 
+[jenkins]
+jenkins.local ansible_host=192.168.56.13
+
 # Group variables for all hosts
 [all:vars]
 ansible_become=yes

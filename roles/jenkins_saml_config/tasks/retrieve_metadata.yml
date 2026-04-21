@@ -1,0 +1,27 @@
+---
+# Fetch Keycloak SAML IdP metadata from the controller — the Jenkins host itself
+# cannot resolve/reach keycloak.local directly. Mirrors the approach used by
+# roles/sonarqube_saml_config/tasks/retrieve_cert.yml.
+
+- name: Fetch Keycloak SAML IdP metadata
+  ansible.builtin.uri:
+    url: "{{ jenkins_saml_metadata_url }}"
+    return_content: true
+    validate_certs: "{{ jenkins_validate_certs }}"
+  register: keycloak_saml_metadata
+  retries: 3
+  delay: 5
+  until: keycloak_saml_metadata.status == 200
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+
+- name: Fail if SAML metadata could not be retrieved
+  ansible.builtin.fail:
+    msg: "Could not fetch Keycloak SAML metadata from {{ jenkins_saml_metadata_url }}. Is the '{{ keycloak_realm }}' realm running?"
+  when: keycloak_saml_metadata.content | default('') | length == 0
+
+- name: Confirm SAML metadata retrieved
+  ansible.builtin.debug:
+    msg: "Fetched {{ keycloak_saml_metadata.content | length }} bytes of SAML metadata from {{ jenkins_saml_metadata_url }}"

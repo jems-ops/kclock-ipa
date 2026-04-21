@@ -1,26 +1,10 @@
 ---
-# Remove the previously-used 'ipa' realm (if present) to avoid conflicts with
-# the LDAP federation and SAML clients now configured on the 'master' realm.
-- name: Check if old realm exists
-  ansible.builtin.command: >
-    {{ keycloak_kcadm }} get realms/{{ keycloak_old_realm }}
-  register: old_realm_check
-  changed_when: false
-  failed_when: false
-  when: keycloak_old_realm is defined and keycloak_old_realm != keycloak_realm
+# We use the built-in 'master' realm (shared across all SAML SPs). It always
+# exists on a running Keycloak, so we only need to verify that and report status.
+# Do NOT delete any realm here — deletion is a destructive one-off and should
+# be performed manually if ever needed.
 
-- name: Delete old realm to avoid conflicts
-  ansible.builtin.command: >
-    {{ keycloak_kcadm }} delete realms/{{ keycloak_old_realm }}
-  when:
-    - keycloak_old_realm is defined
-    - keycloak_old_realm != keycloak_realm
-    - old_realm_check.rc is defined
-    - old_realm_check.rc == 0
-  register: old_realm_delete
-  changed_when: old_realm_delete.rc == 0
-
-- name: Check if realm already exists
+- name: Check that realm exists
   ansible.builtin.command: >
     {{ keycloak_kcadm }} get realms/{{ keycloak_realm }}
   register: realm_check
@@ -39,6 +23,13 @@
   register: realm_create
   changed_when: realm_create.rc == 0
 
+- name: Parse realm status JSON
+  ansible.builtin.set_fact:
+    keycloak_realm_info: "{{ realm_check.stdout | from_json }}"
+  when: realm_check.rc == 0
+
 - name: Realm status
   ansible.builtin.debug:
-    msg: "Realm '{{ keycloak_realm }}': {{ 'already existed' if realm_check.rc == 0 else 'created' }}"
+    msg: >-
+      Realm '{{ keycloak_realm }}':
+      {% if realm_check.rc == 0 %}exists (enabled={{ keycloak_realm_info.enabled }}){% else %}created{% endif %}

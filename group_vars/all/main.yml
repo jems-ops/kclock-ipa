@@ -8,6 +8,7 @@ ansible_become_password: "{{ vault_ansible_become_password }}"
 freeipa_hostname:   "{{ groups['freeipa'][0] }}"
 keycloak_hostname:  "{{ groups['keycloak'][0] }}"
 sonarqube_hostname: "{{ groups['sonarqube'][0] }}"
+jenkins_hostname:   "{{ groups['jenkins'][0] }}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FreeIPA settings
@@ -36,7 +37,6 @@ keycloak_base_url:    "https://{{ keycloak_hostname }}"   # public URL (used in 
 keycloak_kcadm_url:   "http://localhost:8080"    # internal URL used by kcadm.sh on the Keycloak host
 keycloak_admin_realm: master
 keycloak_realm:       master
-keycloak_old_realm:   ipa
 keycloak_admin_user:  admin
 keycloak_admin_password: "{{ vault_keycloak_admin_password }}"
 keycloak_home:        /opt/keycloak-22.0.5
@@ -80,6 +80,25 @@ keycloak_saml_clients:
     force_post_binding:      "true"
     include_authnstatement:  "true"
     # Attribute mappers: user model property → SAML attribute name
+    attributes:
+      - { property: username, saml_name: username, friendly_name: username }
+      - { property: email,    saml_name: email,    friendly_name: email    }
+
+  - name:       jenkins-saml
+    client_id:  jenkins
+    acs_url:    "https://{{ jenkins_hostname }}/securityRealm/finishLogin"
+    admin_url:  "https://{{ jenkins_hostname }}"
+    base_url:   "https://{{ jenkins_hostname }}"
+    redirect_uris:
+      - "https://{{ jenkins_hostname }}/*"
+    nameid_format:           email
+    nameid_user_attribute:   email
+    sign_documents:          "false"
+    sign_assertions:         "true"
+    force_post_binding:      "true"
+    include_authnstatement:  "true"
+    # Attribute mappers: user model property → SAML attribute name
+    # (Jenkins SAML plugin reads these by attribute name — same schema as SonarQube.)
     attributes:
       - { property: username, saml_name: username, friendly_name: username }
       - { property: email,    saml_name: email,    friendly_name: email    }

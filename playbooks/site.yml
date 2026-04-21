@@ -5,3 +5,4 @@
 - import_playbook: freeipa_prep.yml
 - import_playbook: keycloak_config.yml
 - import_playbook: sonarqube_saml.yml
+- import_playbook: jenkins_saml.yml

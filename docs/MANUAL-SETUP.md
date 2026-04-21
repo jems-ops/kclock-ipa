@@ -486,3 +486,100 @@ cn (group)       →    Keycloak group      →     groups            →    son
   SAML client. It injects a `Role` attribute that conflicts with the `groups` mapper.
 - SonarQube requires the signing certificate as a single-line base64 string — not
   PEM-formatted with line breaks.
+
+---
+
+## Part 9 — Adding another SAML app (Jenkins example)
+
+The Keycloak role is designed for **multi-SP SSO**: one FreeIPA username/password,
+one Keycloak realm session, many SAML apps. Every SAML client is defined as an
+entry in `keycloak_saml_clients` in `group_vars/all/main.yml`, and the role
+loops over them — creating new ones and updating existing ones in place.
+
+### 9.1 Add the app to `keycloak_saml_clients`
+> **Ansible:** `group_vars/all/main.yml`
+
+Every entry uses the same schema. The Jenkins entry looks like this:
+
+```yaml
+- name:       jenkins-saml
+  client_id:  jenkins
+  acs_url:    "https://{{ jenkins_hostname }}/securityRealm/finishLogin"
+  admin_url:  "https://{{ jenkins_hostname }}"
+  base_url:   "https://{{ jenkins_hostname }}"
+  redirect_uris:
+    - "https://{{ jenkins_hostname }}/*"
+  nameid_format:           email
+  nameid_user_attribute:   email
+  sign_documents:          "false"
+  sign_assertions:         "true"
+  force_post_binding:      "true"
+  include_authnstatement:  "true"
+  attributes:
+    - { property: username, saml_name: username, friendly_name: username }
+    - { property: email,    saml_name: email,    friendly_name: email    }
+```
+
+For any other app, copy the block, change `name`, `client_id`, and the three
+URLs. The ACS URL is app-specific (see table below). The attribute list and
+groups mapper are added automatically.
+
+| App        | ACS URL path                      |
+|------------|-----------------------------------|
+| SonarQube  | `/oauth2/callback/saml`           |
+| Jenkins    | `/securityRealm/finishLogin`      |
+| Artifactory| `/webapp/saml/loginResponse`      |
+| Grafana    | `/saml/acs`                       |
+
+### 9.2 Re-apply the Keycloak config
+
+```bash
+make keycloak-config
+```
+
+The role will:
+
+1. Create the new Jenkins client (and its NameID / username / email / groups mappers).
+2. Leave the SonarQube client alone aside from a no-op update that re-applies the current vars.
+
+After the run, the Keycloak admin UI under `Clients` should show both
+`sonarqube` and `jenkins` entries in the same realm.
+
+### 9.3 Configure the app side (Jenkins)
+
+The Keycloak side is now ready. Configure Jenkins itself (via the
+[Jenkins SAML plugin](https://plugins.jenkins.io/saml/), JCasC, or a Groovy
+init script in your existing Jenkins role) with these values:
+
+| Jenkins SAML plugin field | Value |
+|---|---|
+| **IdP Metadata URL** | `https://keycloak.local/realms/{{ keycloak_realm }}/protocol/saml/descriptor` |
+| **Display Name Attribute** | `username` |
+| **Username Attribute** | `username` |
+| **Email Attribute** | `email` |
+| **Groups Attribute** | `groups` |
+| **Username Case Conversion** | `None` |
+| **Binding** | `HTTP-POST` |
+| **Logout URL** | `https://keycloak.local/realms/{{ keycloak_realm }}/protocol/openid-connect/logout` |
+
+Make sure Jenkins's own **`Jenkins URL`** (Manage Jenkins → System) matches
+`https://jenkins.local/` exactly — otherwise SAML ACS validation will reject
+the response.
+
+### 9.4 Verify SSO
+
+1. Open `https://jenkins.local` in a browser (in a fresh private window).
+2. Click the Jenkins login button → redirected to Keycloak.
+3. Sign in once with a FreeIPA user → redirected back to Jenkins, logged in.
+4. Without closing the browser, open `https://sonar.local` → no password prompt,
+   you should land straight in SonarQube. That's the shared realm session doing
+   its job.
+
+### 9.5 Known pitfalls (same as SonarQube)
+
+- **Do not pre-create a Jenkins user** with the same login as a FreeIPA user
+  before the first SAML login, for the same reason described in Part 8 /
+  `docs/TROUBLESHOOTING.md` Issue 6.
+- If you see `Found an Attribute element with duplicated Name`, check that the
+  Jenkins client in Keycloak still has `groups_mapper.single = true` (the
+  default), and that no `role_list` default scope has been re-attached.
