@@ -19,42 +19,41 @@
 #
 # See Makefile for shortcut targets.
 
-- name: Prepare FreeIPA for Keycloak LDAP federation
-  hosts: freeipa
-  become: true
-  gather_facts: true
-  tags:
-    - freeipa_prep
-    - prep
-  roles:
-    - freeipa_keycloak_prep
 
-- name: Configure Keycloak realm, LDAP federation, and SAML clients
-  hosts: keycloak
-  become: true
-  gather_facts: true
-  tags:
-    - keycloak_config
-    - idp
-  roles:
-    - keycloak_saml_federation
-
-- name: Configure SonarQube SAML settings
-  hosts: sonarqube
+- name: Configure Keycloak SSO stack (IdP + SP apps)
+  hosts: all
   become: true
   gather_facts: false
-  tags:
-    - sonarqube_saml
-    - saml_sp
-  roles:
-    - sonarqube_saml_config
 
-- name: Configure Jenkins SAML settings
-  hosts: jenkins
-  become: true
-  gather_facts: false
-  tags:
-    - jenkins_saml
-    - saml_sp
-  roles:
-    - jenkins_saml_config
+  tasks:
+    - name: FreeIPA prep (bind account + CA export)
+      ansible.builtin.include_role:
+        name: freeipa_keycloak_prep
+      when: inventory_hostname in groups['freeipa']
+      tags:
+        - freeipa_prep
+        - prep
+
+    - name: Keycloak realm / LDAP federation / SAML clients
+      ansible.builtin.include_role:
+        name: keycloak_saml_federation
+      when: inventory_hostname in groups['keycloak']
+      tags:
+        - keycloak_config
+        - idp
+
+    - name: SonarQube SAML SP configuration
+      ansible.builtin.include_role:
+        name: sonarqube_saml_config
+      when: inventory_hostname in groups['sonarqube']
+      tags:
+        - sonarqube_saml
+        - saml_sp
+
+    - name: Jenkins SAML SP configuration
+      ansible.builtin.include_role:
+        name: jenkins_saml_config
+      when: inventory_hostname in groups['jenkins']
+      tags:
+        - jenkins_saml
+        - saml_sp
