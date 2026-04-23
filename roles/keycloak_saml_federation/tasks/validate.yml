@@ -26,9 +26,9 @@
 - name: Print Keycloak SAML IdP metadata URL
   ansible.builtin.debug:
     msg:
-      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Keycloak SAML IdP Metadata URL:"
-      - "  {{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml/descriptor"
+      - "  {{ keycloak_saml_metadata_url }}"
       - ""
       - "Use this URL to configure SonarQube (or any SAML SP) as the IdP metadata source."
-      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

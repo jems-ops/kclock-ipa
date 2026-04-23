@@ -15,7 +15,7 @@
       - ""
       - "To test SSO:"
       - "  1. Wait for Jenkins to restart"
-      - "  2. Open https://{{ jenkins_hostname }} in a browser"
+      - "  2. Open {{ jenkins_base_url }} in a browser"
       - "  3. Click 'Login with SAML SSO'"
       - "  4. Authenticate with a FreeIPA user via Keycloak"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

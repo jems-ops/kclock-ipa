@@ -14,7 +14,7 @@
       - "SonarQube SAML settings written to sonar.properties."
       - ""
       - "To test SSO:"
-      - "  1. Open {{ sonarqube_url }} in a browser"
+      - "  1. Open {{ sonarqube_base_url }} in a browser"
       - "  2. Click 'Log in with {{ sonarqube_saml_provider_name }}'"
       - "  3. Authenticate with a FreeIPA user via Keycloak"
       - "  4. Verify you are logged in to SonarQube"

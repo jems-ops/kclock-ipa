@@ -6,6 +6,14 @@
   register: freeipa_ca_slurp
   delegate_to: "{{ groups['freeipa'][0] }}"
 
+- name: Ensure Keycloak truststore directory exists
+  ansible.builtin.file:
+    path: "{{ keycloak_truststore_dir }}"
+    state: directory
+    owner: keycloak
+    group: keycloak
+    mode: "0750"
+
 - name: Write FreeIPA CA cert to Keycloak host
   ansible.builtin.copy:
     content: "{{ freeipa_ca_slurp.content | b64decode }}"

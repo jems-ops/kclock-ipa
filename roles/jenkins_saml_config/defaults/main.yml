@@ -1,12 +1,12 @@
 ---
+# keycloak_saml_metadata_url, keycloak_logout_url, jenkins_base_url etc. are
+# defined centrally in group_vars/all/main.yml — do not redeclare here.
+
 # Jenkins install path. Leave empty for auto-detect, or set e.g. /var/lib/jenkins.
 jenkins_home: ""
 
 # TLS validation for the controller-side metadata fetch (self-signed Keycloak in lab → false).
 jenkins_validate_certs: false
-
-# Keycloak IdP descriptor URL — fetched on the controller and embedded in config.xml.
-jenkins_saml_metadata_url: "{{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml/descriptor"
 
 # SAML attribute names — must match the Keycloak SAML client mappers in the
 # "jenkins-saml" entry of keycloak_saml_clients.

@@ -1,17 +1,62 @@
 ---
-- name: Check FreeIPA CA cert exists
+# If the user set freeipa_ca_cert_path explicitly, use it verbatim.
+# Otherwise stat each candidate in freeipa_ca_cert_candidates and take the first
+# that exists, so the role works on both IPA servers and enrolled clients
+# without the operator needing to know the layout.
+
+- name: Stat user-supplied FreeIPA CA cert path
   ansible.builtin.stat:
     path: "{{ freeipa_ca_cert_path }}"
-  register: ipa_ca_stat
+  register: ipa_ca_explicit_stat
+  when: freeipa_ca_cert_path | length > 0
 
-- name: Fail if FreeIPA CA cert is missing
+- name: Fail if user-supplied CA cert path does not exist
   ansible.builtin.fail:
-    msg: "FreeIPA CA cert not found at {{ freeipa_ca_cert_path }}. Is this host enrolled in FreeIPA?"
-  when: not ipa_ca_stat.stat.exists
+    msg: "freeipa_ca_cert_path={{ freeipa_ca_cert_path }} was set but no file exists there."
+  when:
+    - freeipa_ca_cert_path | length > 0
+    - not ipa_ca_explicit_stat.stat.exists
+
+- name: Auto-detect FreeIPA CA cert from candidate paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ freeipa_ca_cert_candidates }}"
+  register: ipa_ca_candidate_stats
+  when: freeipa_ca_cert_path | length == 0
+
+- name: Select the first existing candidate path
+  ansible.builtin.set_fact:
+    freeipa_ca_cert_resolved_path: >-
+      {{
+        (ipa_ca_candidate_stats.results
+         | selectattr('stat.exists')
+         | list
+         | first).stat.path
+      }}
+  when:
+    - freeipa_ca_cert_path | length == 0
+    - ipa_ca_candidate_stats.results | selectattr('stat.exists') | list | length > 0
+
+- name: Use the explicit CA cert path when provided
+  ansible.builtin.set_fact:
+    freeipa_ca_cert_resolved_path: "{{ freeipa_ca_cert_path }}"
+  when: freeipa_ca_cert_path | length > 0
+
+- name: Fail if no CA cert could be located
+  ansible.builtin.fail:
+    msg: |
+      Could not find a FreeIPA CA certificate on {{ inventory_hostname }}.
+      Tried: {{ freeipa_ca_cert_candidates | join(', ') }}
+      Set freeipa_ca_cert_path explicitly if your install uses a different path.
+  when: freeipa_ca_cert_resolved_path is not defined
+
+- name: Show resolved CA cert path
+  ansible.builtin.debug:
+    msg: "FreeIPA CA cert resolved to: {{ freeipa_ca_cert_resolved_path }}"
 
 - name: Copy FreeIPA CA cert to export path
   ansible.builtin.copy:
-    src: "{{ freeipa_ca_cert_path }}"
+    src: "{{ freeipa_ca_cert_resolved_path }}"
     dest: "{{ freeipa_keycloak_ca_export_path }}"
     remote_src: true
     mode: "0644"

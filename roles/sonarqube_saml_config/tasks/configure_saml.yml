@@ -13,7 +13,7 @@
   ansible.builtin.lineinfile:
     path: "{{ sonarqube_home_path }}/conf/sonar.properties"
     regexp: '^sonar\.core\.serverBaseURL'
-    line: "sonar.core.serverBaseURL={{ sonarqube_url }}"
+    line: "sonar.core.serverBaseURL={{ sonarqube_base_url }}"
     state: present
 
 - name: Remove any existing SAML lines (clean re-apply)
@@ -30,8 +30,8 @@
       sonar.auth.saml.enabled=true
       sonar.auth.saml.applicationId={{ sonarqube_saml_application_id }}
       sonar.auth.saml.providerName={{ sonarqube_saml_provider_name }}
-      sonar.auth.saml.providerId={{ keycloak_base_url }}/realms/{{ keycloak_realm }}
-      sonar.auth.saml.loginUrl={{ keycloak_base_url }}/realms/{{ keycloak_realm }}/protocol/saml
+      sonar.auth.saml.providerId={{ keycloak_realm_base_url }}
+      sonar.auth.saml.loginUrl={{ keycloak_saml_login_url }}
       sonar.auth.saml.user.login={{ sonarqube_saml_user_login_attr }}
       sonar.auth.saml.user.name={{ sonarqube_saml_user_name_attr }}
       sonar.auth.saml.user.email={{ sonarqube_saml_user_email_attr }}

@@ -1,4 +1,13 @@
 ---
-# Override these in group_vars/all/main.yml if needed
-freeipa_ca_cert_path:            /etc/ipa/ca.crt
+# If freeipa_ca_cert_path is left empty in group_vars/all/main.yml, the role
+# stat's these candidate paths in order and uses the first one that exists.
+# Extend this list if you're running on a layout the defaults don't cover.
+freeipa_ca_cert_path:            ""
+freeipa_ca_cert_candidates:
+  - /etc/ipa/ca.crt                                       # IPA 4.x server & enrolled clients (most common)
+  - /etc/ipa/nssdb/cacert.pem                             # older IPA layouts
+  - /etc/pki/ca-trust/source/anchors/ipa-ca.crt           # system CA anchor copy
+  - /var/lib/ipa/pki-ca/publish/ipa.crt                   # Dogtag publish directory
+  - /etc/pki/pki-tomcat/certs/ca.crt                      # Dogtag Tomcat instance
+
 freeipa_keycloak_ca_export_path: /tmp/freeipa-ca.crt
