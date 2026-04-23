@@ -1,8 +1,60 @@
 ---
-# Master playbook — runs all three steps in the correct order.
-# Run individually for selective execution (see Makefile targets).
+# Master playbook: FreeIPA → Keycloak → SAML SPs.
+#
+# Order matters on a fresh run:
+#   1. FreeIPA prep       (LDAP bind account + CA cert export)
+#   2. Keycloak config    (realm, LDAP federation, SAML clients)
+#   3. SonarQube SAML     (sonar.properties)
+#   4. Jenkins SAML       (config.xml)
+#
+# Selective execution: combine --tags and/or --limit.
+#
+#   ansible-playbook -i inventory playbooks/site.yml                              # everything
+#   ansible-playbook -i inventory playbooks/site.yml --tags freeipa_prep          # only FreeIPA
+#   ansible-playbook -i inventory playbooks/site.yml --tags keycloak_config       # only Keycloak
+#   ansible-playbook -i inventory playbooks/site.yml --tags sonarqube_saml        # only SonarQube
+#   ansible-playbook -i inventory playbooks/site.yml --tags jenkins_saml          # only Jenkins
+#   ansible-playbook -i inventory playbooks/site.yml --tags saml_sp               # all SAML SPs
+#   ansible-playbook -i inventory playbooks/site.yml --limit jenkins.local        # one host only
+#
+# See Makefile for shortcut targets.
 
-- import_playbook: freeipa_prep.yml
-- import_playbook: keycloak_config.yml
-- import_playbook: sonarqube_saml.yml
-- import_playbook: jenkins_saml.yml
+- name: Prepare FreeIPA for Keycloak LDAP federation
+  hosts: freeipa
+  become: true
+  gather_facts: true
+  tags:
+    - freeipa_prep
+    - prep
+  roles:
+    - freeipa_keycloak_prep
+
+- name: Configure Keycloak realm, LDAP federation, and SAML clients
+  hosts: keycloak
+  become: true
+  gather_facts: true
+  tags:
+    - keycloak_config
+    - idp
+  roles:
+    - keycloak_saml_federation
+
+- name: Configure SonarQube SAML settings
+  hosts: sonarqube
+  become: true
+  gather_facts: false
+  tags:
+    - sonarqube_saml
+    - saml_sp
+  roles:
+    - sonarqube_saml_config
+
+- name: Configure Jenkins SAML settings
+  hosts: jenkins
+  become: true
+  gather_facts: false
+  tags:
+    - jenkins_saml
+    - saml_sp
+  roles:
+    - jenkins_saml_config
