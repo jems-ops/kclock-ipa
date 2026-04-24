@@ -1,49 +1,74 @@
 ---
-# Create-or-update flow:
-#   1. Look up each client by clientId; capture its UUID if it already exists (empty if not)
-#   2. Render the JSON payload for every client
-#   3. Create the ones missing a UUID
-#   4. Update the ones that already have a UUID (so re-runs pick up changes to
-#      acs_url, redirect_uris, attribute lists, etc.)
-
-- name: Look up existing SAML client UUIDs
-  ansible.builtin.shell: >
-    {{ keycloak_kcadm }} get clients -r {{ keycloak_realm }}
+# ------------------------------------------
+# 1. Look up each client by clientId
+# ------------------------------------------
+- name: Look up existing SAML clients
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get clients
+    -r {{ keycloak_realm }}
     -q clientId={{ item.client_id }}
-    | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")'
-  register: client_exists_check
+  register: saml_client_lookup
   changed_when: false
   loop: "{{ keycloak_saml_clients }}"
   loop_control:
     label: "{{ item.name }}"
 
+# ------------------------------------------
+# 2. Validate lookup output before parsing
+# ------------------------------------------
+
+- name: Validate SAML client lookup output
+  ansible.builtin.assert:
+    that:
+      - item.stdout is defined
+      - item.stdout | from_json is iterable
+    fail_msg: "Invalid Keycloak client lookup response for {{ item.item.name }}"
+  loop: "{{ saml_client_lookup.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+# ------------------------------------------
+# 3. Render payloads for every client
+#    (same payload used for create/update)
+# ------------------------------------------
+
 - name: Render SAML client JSON payloads
   ansible.builtin.template:
     src: saml-client.json.j2
     dest: "{{ keycloak_tmp_dir }}/client-{{ item.item.name }}.json"
-    mode: "0644"
-  loop: "{{ client_exists_check.results }}"
+    mode: "0600"
+  loop: "{{ saml_client_lookup.results }}"
   loop_control:
     label: "{{ item.item.name }}"
+
+# ------------------------------------------
+# 4. Create clients that do not yet exist
+# ------------------------------------------
 
 - name: Create missing SAML clients
   ansible.builtin.command: >
-    {{ keycloak_kcadm }} create clients -r {{ keycloak_realm }}
+    {{ keycloak_kcadm }} create clients
+    -r {{ keycloak_realm }}
     -f {{ keycloak_tmp_dir }}/client-{{ item.item.name }}.json
-  loop: "{{ client_exists_check.results }}"
+  when: (item.stdout | from_json | length) == 0
+  register: saml_client_create
+  changed_when: saml_client_create.rc == 0
+  loop: "{{ saml_client_lookup.results }}"
   loop_control:
     label: "{{ item.item.name }}"
-  when: item.stdout | trim == ''
-  register: client_create
-  changed_when: client_create.rc == 0
+
+# ------------------------------------------
+# 5. Update clients that already exist
+# ------------------------------------------
 
 - name: Update existing SAML clients
   ansible.builtin.command: >
-    {{ keycloak_kcadm }} update clients/{{ item.stdout | trim }} -r {{ keycloak_realm }}
+    {{ keycloak_kcadm }} update clients/{{ ((item.stdout | from_json | first).id) }}
+    -r {{ keycloak_realm }}
     -f {{ keycloak_tmp_dir }}/client-{{ item.item.name }}.json
-  loop: "{{ client_exists_check.results }}"
+  when: (item.stdout | from_json | length) > 0
+  register: saml_client_update
+  changed_when: saml_client_update.rc == 0
+  loop: "{{ saml_client_lookup.results }}"
   loop_control:
     label: "{{ item.item.name }}"
-  when: item.stdout | trim != ''
-  register: client_update
-  changed_when: client_update.rc == 0
