@@ -1,33 +1,90 @@
 ---
-- name: List existing components in realm
+# ==========================================
+# STIG-Aligned Keycloak LDAP Provider Config
+# ==========================================
+
+# Assumes:
+# - keycloak_kcadm (full path to kcadm.sh)
+# - keycloak_kcadm_url
+# - keycloak_realm
+# - keycloak_admin_user / keycloak_admin_password (vault)
+# - keycloak_ldap_provider_name
+# - keycloak_tmp_dir
+
+# ------------------------------------------
+# 0. Authenticate to Keycloak (required)
+# ------------------------------------------
+- name: Authenticate to Keycloak
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} config credentials
+    --server {{ keycloak_kcadm_url }}
+    --realm {{ keycloak_admin_realm }}
+    --user {{ keycloak_admin_user }}
+    --password {{ keycloak_admin_password }}
+  no_log: true
+  changed_when: false
+
+# ------------------------------------------
+# 1. Get existing components (single source)
+# ------------------------------------------
+- name: Get existing Keycloak components
   ansible.builtin.command: >
     {{ keycloak_kcadm }} get components -r {{ keycloak_realm }}
   register: realm_components_raw
   changed_when: false
 
-- name: Check if LDAP provider already exists
+# ------------------------------------------
+# 2. Parse JSON safely (no shell/python)
+# ------------------------------------------
+- name: Parse components JSON
   ansible.builtin.set_fact:
-    keycloak_ldap_provider_present: "{{ keycloak_ldap_provider_name in realm_components_raw.stdout }}"
+    realm_components: "{{ realm_components_raw.stdout | from_json }}"
 
-# Keycloak requires the realm UUID (not name) as parentId for sync to work
-- name: Get realm UUID
-  ansible.builtin.shell: >
+# ------------------------------------------
+# 3. Detect existing LDAP provider safely
+# ------------------------------------------
+- name: Extract LDAP provider object
+  ansible.builtin.set_fact:
+    ldap_provider_obj: >-
+      {{
+        realm_components
+        | selectattr('providerId', 'equalto', 'ldap')
+        | selectattr('name', 'equalto', keycloak_ldap_provider_name)
+        | list
+        | first | default({})
+      }}
+
+- name: Set LDAP provider facts
+  ansible.builtin.set_fact:
+    keycloak_ldap_provider_present: "{{ ldap_provider_obj | length > 0 }}"
+    keycloak_ldap_provider_id: "{{ ldap_provider_obj.id | default('') }}"
+
+# ------------------------------------------
+# 4. Get realm UUID (safe parsing)
+# ------------------------------------------
+- name: Get realm details
+  ansible.builtin.command: >
     {{ keycloak_kcadm }} get realms/{{ keycloak_realm }}
-    | python3 -c 'import sys,json; print(json.load(sys.stdin)["id"])'
-  register: keycloak_realm_uuid_cmd
+  register: realm_info_raw
   changed_when: false
 
-- name: Set realm UUID fact
+- name: Parse realm UUID
   ansible.builtin.set_fact:
-    keycloak_realm_uuid: "{{ keycloak_realm_uuid_cmd.stdout | trim }}"
+    keycloak_realm_uuid: "{{ (realm_info_raw.stdout | from_json).id }}"
 
+# ------------------------------------------
+# 5. Render LDAP provider config
+# ------------------------------------------
 - name: Render LDAP provider JSON payload
   ansible.builtin.template:
     src: ldap-provider.json.j2
     dest: "{{ keycloak_tmp_dir }}/ldap-provider.json"
-    mode: "0644"
+    mode: "0600"
 
-- name: Create LDAP provider component
+# ------------------------------------------
+# 6. Create LDAP provider (if missing)
+# ------------------------------------------
+- name: Create LDAP provider
   ansible.builtin.command: >
     {{ keycloak_kcadm }} create components -r {{ keycloak_realm }}
     -f {{ keycloak_tmp_dir }}/ldap-provider.json
@@ -35,33 +92,63 @@
   register: ldap_provider_create
   changed_when: ldap_provider_create.rc == 0
 
-- name: Retrieve LDAP provider internal ID
-  ansible.builtin.shell: >
+# ------------------------------------------
+# 7. Refresh components after create (important)
+# ------------------------------------------
+- name: Refresh components after creation
+  ansible.builtin.command: >
     {{ keycloak_kcadm }} get components -r {{ keycloak_realm }}
-    | python3 -c 'import sys,json;
-    data=json.load(sys.stdin);
-    m=[x for x in data if x.get("name")=="{{ keycloak_ldap_provider_name }}"];
-    print(m[0]["id"] if m else "")'
-  register: ldap_provider_id_cmd
+  register: realm_components_refresh
   changed_when: false
 
-- name: Set LDAP provider ID fact
+- name: Re-parse components JSON
   ansible.builtin.set_fact:
-    keycloak_ldap_provider_id: "{{ ldap_provider_id_cmd.stdout | trim }}"
+    realm_components: "{{ realm_components_refresh.stdout | from_json }}"
 
-- name: Fail if LDAP provider ID could not be resolved
-  ansible.builtin.fail:
-    msg: "Could not retrieve ID for LDAP provider '{{ keycloak_ldap_provider_name }}' in realm '{{ keycloak_realm }}'"
-  when: keycloak_ldap_provider_id | length == 0
+# ------------------------------------------
+# 8. Resolve LDAP provider ID (post-create safe)
+# ------------------------------------------
+- name: Resolve LDAP provider ID
+  ansible.builtin.set_fact:
+    keycloak_ldap_provider_id: >-
+      {{
+        (realm_components
+          | selectattr('providerId', 'equalto', 'ldap')
+          | selectattr('name', 'equalto', keycloak_ldap_provider_name)
+          | list
+          | first | default({})
+        ).id | default('')
+      }}
 
-- name: Update existing LDAP provider config on rerun
+# ------------------------------------------
+# 9. Validate provider exists (STIG requirement)
+# ------------------------------------------
+- name: Validate LDAP provider presence
+  ansible.builtin.assert:
+    that:
+      - keycloak_ldap_provider_id | length > 0
+    fail_msg: "LDAP provider '{{ keycloak_ldap_provider_name }}' not found or failed to create"
+
+# ------------------------------------------
+# 10. Update LDAP provider (idempotent)
+# ------------------------------------------
+- name: Update LDAP provider configuration
   ansible.builtin.command: >
-    {{ keycloak_kcadm }} update components/{{ keycloak_ldap_provider_id }} -r {{ keycloak_realm }}
+    {{ keycloak_kcadm }} update components/{{ keycloak_ldap_provider_id }}
+    -r {{ keycloak_realm }}
     -f {{ keycloak_tmp_dir }}/ldap-provider.json
   when: keycloak_ldap_provider_present
   register: ldap_provider_update
   changed_when: ldap_provider_update.rc == 0
 
+# ------------------------------------------
+# 11. Final status output
+# ------------------------------------------
 - name: LDAP provider status
   ansible.builtin.debug:
-    msg: "LDAP provider '{{ keycloak_ldap_provider_name }}' ID: {{ keycloak_ldap_provider_id }}"
+    msg: >-
+      LDAP provider '{{ keycloak_ldap_provider_name }}'
+      (ID: {{ keycloak_ldap_provider_id }})
+      status: {{
+        'created' if not keycloak_ldap_provider_present else 'updated'
+      }}
