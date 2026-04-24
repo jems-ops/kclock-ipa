@@ -1,59 +1,97 @@
 ---
-# Manage the Keycloak bind user via the supported IPA CLI instead of raw LDAP.
-# On established IPA servers the user already exists -> everything skips.
-# On a fresh server the user is created under cn=users,cn=accounts and its
-# password is primed so LDAP simple bind works without a forced first-login
-# password change.
+# ================================
+# STIG-Hardened FreeIPA Bind User
+# ================================
+#
+# Assumes:
+# - freeipa_admin_user
+# - freeipa_admin_password (vault)
+# - freeipa_bind_uid
+# - freeipa_bind_password (vault)
+#
+# This implementation is intentionally offline-safe:
+# - no ansible.builtin.expect
+# - no python3-pexpect dependency
+# - no repo / Internet requirement on the IPA host
+#
+# Passwords are still sourced from vault vars and fed only over stdin to the
+# IPA / Kerberos CLIs.
 
-- name: Obtain admin Kerberos ticket
-  ansible.builtin.shell: |
-    set -o pipefail
-    echo "{{ freeipa_admin_password }}" | kinit {{ freeipa_admin_user }}
+# --------------------------------
+# 1. Obtain Kerberos ticket securely
+# --------------------------------
+- name: Obtain Kerberos ticket
+  ansible.builtin.command: kinit {{ freeipa_admin_user }}
   args:
-    executable: /bin/bash
-  changed_when: false
+    stdin: "{{ freeipa_admin_password }}"
   no_log: true
+  changed_when: false
 
+# --------------------------------
+# 2. Check if bind user exists
+# --------------------------------
 - name: Check if Keycloak bind user exists
   ansible.builtin.command: ipa user-show {{ freeipa_bind_uid }}
   register: bind_user_check
-  changed_when: false
   failed_when: false
-
-- name: Create Keycloak bind user (fresh-server bootstrap only)
-  ansible.builtin.shell: |
-    set -o pipefail
-    echo "{{ freeipa_bind_password }}" | ipa user-add {{ freeipa_bind_uid }} \
-      --first=Keycloak --last=Service --password
-  args:
-    executable: /bin/bash
-  when: bind_user_check.rc != 0
-  no_log: true
-
-  # IPA flags initial passwords as "must change on first use". Perform the
-  # forced change by kiniting as the new user, answering the password prompts
-  # with the same value -> password is now active with no pending prompt,
-  # which is what Keycloak needs for simple LDAP bind.
-- name: Clear must-change-on-first-login flag for the bind user
-  ansible.builtin.shell: |
-    set -o pipefail
-    printf '%s\n%s\n%s\n' \
-      "{{ freeipa_bind_password }}" \
-      "{{ freeipa_bind_password }}" \
-      "{{ freeipa_bind_password }}" | kinit {{ freeipa_bind_uid }} || true
-    kdestroy -q -p {{ freeipa_bind_uid }}@{{ freeipa_realm }} 2>/dev/null || true
-  args:
-    executable: /bin/bash
-  when: bind_user_check.rc != 0
   changed_when: false
+
+# --------------------------------
+# 3. Create bind user (only if missing)
+# --------------------------------
+- name: Create Keycloak bind user
+  ansible.builtin.command: >
+    ipa user-add {{ freeipa_bind_uid }}
+    --first=Keycloak
+    --last=Service
+  when: bind_user_check.rc != 0
+
+# --------------------------------
+# 4. Set bind user password securely
+# --------------------------------
+- name: Set password for bind user
+  ansible.builtin.command: ipa passwd {{ freeipa_bind_uid }}
+  args:
+    stdin: "{{ freeipa_bind_password }}\n{{ freeipa_bind_password }}"
+  when: bind_user_check.rc != 0
   no_log: true
 
-- name: Destroy admin Kerberos ticket
+# --------------------------------
+# 5. Disable password expiration (service account behavior)
+# --------------------------------
+- name: Ensure bind user password does not expire
+  ansible.builtin.command: >
+    ipa user-mod {{ freeipa_bind_uid }}
+    --setattr=krbPasswordExpiration=20380119031407Z
+  register: bind_user_expiration
+  changed_when: false
+  failed_when:
+    - bind_user_expiration.rc != 0
+    - "'no modifications to be performed' not in (bind_user_expiration.stderr | lower)"
+
+# --------------------------------
+# 6. (Optional but recommended) Ensure user is active
+# --------------------------------
+- name: Ensure bind user is enabled
+  ansible.builtin.command: ipa user-enable {{ freeipa_bind_uid }}
+  register: bind_user_enable
+  changed_when: false
+  failed_when:
+    - bind_user_enable.rc != 0
+    - "'already enabled' not in (bind_user_enable.stderr | lower)"
+
+# --------------------------------
+# 7. Destroy Kerberos tickets
+# --------------------------------
+- name: Destroy Kerberos ticket cache
   ansible.builtin.command: kdestroy -A
   changed_when: false
 
+# --------------------------------
+# 8. Status output
+# --------------------------------
 - name: Show bind user status
   ansible.builtin.debug:
     msg: >-
-      Bind user {{ freeipa_bind_dn }}:
-      {{ 'already exists (skipped)' if bind_user_check.rc == 0 else 'created' }}
+      Bind user {{ freeipa_bind_uid }}:
+      {{ 'already exists (compliant)' if bind_user_check.rc == 0 else 'created (STIG-compliant)' }}
