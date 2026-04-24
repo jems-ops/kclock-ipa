@@ -31,9 +31,14 @@ freeipa_base_dn:  "{{ freeipa_domain.split('.') | map('regex_replace', '^(.*)$',
 freeipa_users_dn:  "cn=users,cn=accounts,{{ freeipa_base_dn }}"
 freeipa_groups_dn: "cn=groups,cn=accounts,{{ freeipa_base_dn }}"
 
-freeipa_bind_uid:      keycloak-bind
-freeipa_bind_dn:       "uid={{ freeipa_bind_uid }},cn=sysaccounts,cn=etc,{{ freeipa_base_dn }}"
-freeipa_bind_password: "{{ vault_freeipa_bind_password }}"
+# Bind user is a regular IPA user under cn=users,cn=accounts (not a sysaccount).
+# Managed via the IPA CLI (kinit admin + ipa user-*) in freeipa_keycloak_prep.
+freeipa_bind_uid:       svc_keycloak
+freeipa_bind_dn:        "uid={{ freeipa_bind_uid }},cn=users,cn=accounts,{{ freeipa_base_dn }}"
+freeipa_bind_password:  "{{ vault_freeipa_bind_password }}"
+
+freeipa_admin_user:     admin
+freeipa_admin_password: "{{ vault_freeipa_admin_password }}"
 
 freeipa_ldap_scheme: "ldap"
 freeipa_ldap_port:   389

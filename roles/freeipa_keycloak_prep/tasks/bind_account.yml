@@ -1,43 +1,59 @@
 ---
-# The keycloak-bind sysaccount is expected to exist on established FreeIPA
-# servers. This role only bootstraps it on a FRESH server: check first, then
-# create only if missing. No template file, no ipa-ldap-updater CLI — create
-# the entry directly via community.general.ldap_entry over ldapi + SASL
-# EXTERNAL (root on the IPA server maps to Directory Manager).
+# Manage the Keycloak bind user via the supported IPA CLI instead of raw LDAP.
+# On established IPA servers the user already exists -> everything skips.
+# On a fresh server the user is created under cn=users,cn=accounts and its
+# password is primed so LDAP simple bind works without a forced first-login
+# password change.
 
-- name: Derive 389-ds ldapi URL from realm
-  ansible.builtin.set_fact:
-    freeipa_ldapi_url: "ldapi://%2fvar%2frun%2fslapd-{{ freeipa_realm | replace('.', '-') }}.socket"
+- name: Obtain admin Kerberos ticket
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo "{{ freeipa_admin_password }}" | kinit {{ freeipa_admin_user }}
+  args:
+    executable: /bin/bash
+  changed_when: false
+  no_log: true
 
-- name: Check if keycloak-bind sysaccount already exists
-  ansible.builtin.command: >-
-    ldapsearch -Y EXTERNAL -LLL
-    -H {{ freeipa_ldapi_url }}
-    -b {{ freeipa_bind_dn | quote }}
-    -s base dn
-  register: bind_account_check
+- name: Check if Keycloak bind user exists
+  ansible.builtin.command: ipa user-show {{ freeipa_bind_uid }}
+  register: bind_user_check
   changed_when: false
   failed_when: false
 
-- name: Create keycloak-bind sysaccount (fresh-server bootstrap only)
-  community.general.ldap_entry:
-    server_uri: "{{ freeipa_ldapi_url }}"
-    sasl_class: external
-    dn: "{{ freeipa_bind_dn }}"
-    objectClass:
-      - account
-      - simpleSecurityObject
-    attributes:
-      uid: "{{ freeipa_bind_uid }}"
-      userPassword: "{{ freeipa_bind_password }}"
-      passwordExpirationTime: "20380119031407Z"
-      nsIdleTimeout: "0"
-    state: present
-  when: freeipa_bind_dn not in bind_account_check.stdout
+- name: Create Keycloak bind user (fresh-server bootstrap only)
+  ansible.builtin.shell: |
+    set -o pipefail
+    echo "{{ freeipa_bind_password }}" | ipa user-add {{ freeipa_bind_uid }} \
+      --first=Keycloak --last=Service --password
+  args:
+    executable: /bin/bash
+  when: bind_user_check.rc != 0
   no_log: true
 
-- name: Show bind account status
+  # IPA flags initial passwords as "must change on first use". Perform the
+  # forced change by kiniting as the new user, answering the password prompts
+  # with the same value -> password is now active with no pending prompt,
+  # which is what Keycloak needs for simple LDAP bind.
+- name: Clear must-change-on-first-login flag for the bind user
+  ansible.builtin.shell: |
+    set -o pipefail
+    printf '%s\n%s\n%s\n' \
+      "{{ freeipa_bind_password }}" \
+      "{{ freeipa_bind_password }}" \
+      "{{ freeipa_bind_password }}" | kinit {{ freeipa_bind_uid }} || true
+    kdestroy -q -p {{ freeipa_bind_uid }}@{{ freeipa_realm }} 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  when: bind_user_check.rc != 0
+  changed_when: false
+  no_log: true
+
+- name: Destroy admin Kerberos ticket
+  ansible.builtin.command: kdestroy -A
+  changed_when: false
+
+- name: Show bind user status
   ansible.builtin.debug:
     msg: >-
-      Bind account {{ freeipa_bind_dn }}:
-      {% if freeipa_bind_dn in bind_account_check.stdout %}already exists (skipped){% else %}created{% endif %}
+      Bind user {{ freeipa_bind_dn }}:
+      {{ 'already exists (skipped)' if bind_user_check.rc == 0 else 'created' }}
