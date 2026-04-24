@@ -1,19 +1,43 @@
 ---
-- name: Render LDAP bind account update file
-  ansible.builtin.template:
-    src: keycloak-bind.update.j2
-    dest: /root/keycloak-bind.update
-    owner: root
-    group: root
-    mode: "0600"
+# The keycloak-bind sysaccount is expected to exist on established FreeIPA
+# servers. This role only bootstraps it on a FRESH server: check first, then
+# create only if missing. No template file, no ipa-ldap-updater CLI — create
+# the entry directly via community.general.ldap_entry over ldapi + SASL
+# EXTERNAL (root on the IPA server maps to Directory Manager).
 
-- name: Create or update Keycloak LDAP bind account via ipa-ldap-updater
-  ansible.builtin.command: ipa-ldap-updater /root/keycloak-bind.update
-  register: ipa_bind_result
-  # ipa-ldap-updater always exits 0 on success; changed when update was applied
-  changed_when: "'Update complete' in ipa_bind_result.stdout"
-  failed_when: ipa_bind_result.rc != 0
+- name: Derive 389-ds ldapi URL from realm
+  ansible.builtin.set_fact:
+    freeipa_ldapi_url: "ldapi://%2fvar%2frun%2fslapd-{{ freeipa_realm | replace('.', '-') }}.socket"
 
-- name: Show bind account result
+- name: Check if keycloak-bind sysaccount already exists
+  ansible.builtin.command: >-
+    ldapsearch -Y EXTERNAL -LLL
+    -H {{ freeipa_ldapi_url }}
+    -b {{ freeipa_bind_dn | quote }}
+    -s base dn
+  register: bind_account_check
+  changed_when: false
+  failed_when: false
+
+- name: Create keycloak-bind sysaccount (fresh-server bootstrap only)
+  community.general.ldap_entry:
+    server_uri: "{{ freeipa_ldapi_url }}"
+    sasl_class: external
+    dn: "{{ freeipa_bind_dn }}"
+    objectClass:
+      - account
+      - simpleSecurityObject
+    attributes:
+      uid: "{{ freeipa_bind_uid }}"
+      userPassword: "{{ freeipa_bind_password }}"
+      passwordExpirationTime: "20380119031407Z"
+      nsIdleTimeout: "0"
+    state: present
+  when: freeipa_bind_dn not in bind_account_check.stdout
+  no_log: true
+
+- name: Show bind account status
   ansible.builtin.debug:
-    msg: "Bind account uid={{ freeipa_bind_uid }} created/updated: {{ ipa_bind_result.stdout | default('no output') }}"
+    msg: >-
+      Bind account {{ freeipa_bind_dn }}:
+      {% if freeipa_bind_dn in bind_account_check.stdout %}already exists (skipped){% else %}created{% endif %}
