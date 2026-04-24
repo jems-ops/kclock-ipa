@@ -1,0 +1,11 @@
+---
+# Prepares FreeIPA for Keycloak LDAP federation:
+#   1. Creates a dedicated LDAP bind account for Keycloak
+#   2. Exports the FreeIPA CA certificate for use by Keycloak
+
+- name: Prepare FreeIPA for Keycloak LDAP federation
+  hosts: freeipa
+  become: true
+  gather_facts: true
+  roles:
+    - freeipa_keycloak_prep

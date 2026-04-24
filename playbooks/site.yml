@@ -1,59 +1,8 @@
 ---
-# Master playbook: FreeIPA → Keycloak → SAML SPs.
-#
-# Order matters on a fresh run:
-#   1. FreeIPA prep       (LDAP bind account + CA cert export)
-#   2. Keycloak config    (realm, LDAP federation, SAML clients)
-#   3. SonarQube SAML     (sonar.properties)
-#   4. Jenkins SAML       (config.xml)
-#
-# Selective execution: combine --tags and/or --limit.
-#
-#   ansible-playbook -i inventory playbooks/site.yml                              # everything
-#   ansible-playbook -i inventory playbooks/site.yml --tags freeipa_prep          # only FreeIPA
-#   ansible-playbook -i inventory playbooks/site.yml --tags keycloak_config       # only Keycloak
-#   ansible-playbook -i inventory playbooks/site.yml --tags sonarqube_saml        # only SonarQube
-#   ansible-playbook -i inventory playbooks/site.yml --tags jenkins_saml          # only Jenkins
-#   ansible-playbook -i inventory playbooks/site.yml --tags saml_sp               # all SAML SPs
-#   ansible-playbook -i inventory playbooks/site.yml --limit jenkins.local        # one host only
-#
-# See Makefile for shortcut targets.
+# Master playbook — runs all three steps in the correct order.
+# Run individually for selective execution (see Makefile targets).
 
-
-- name: Configure Keycloak SSO stack (IdP + SP apps)
-  hosts: all
-  become: true
-  gather_facts: false
-
-  tasks:
-    - name: FreeIPA prep (bind account + CA export)
-      ansible.builtin.include_role:
-        name: freeipa_keycloak_prep
-      when: inventory_hostname in groups['freeipa']
-      tags:
-        - freeipa_prep
-        - prep
-
-    - name: Keycloak realm / LDAP federation / SAML clients
-      ansible.builtin.include_role:
-        name: keycloak_saml_federation
-      when: inventory_hostname in groups['keycloak']
-      tags:
-        - keycloak_config
-        - idp
-
-    - name: SonarQube SAML SP configuration
-      ansible.builtin.include_role:
-        name: sonarqube_saml_config
-      when: inventory_hostname in groups['sonarqube']
-      tags:
-        - sonarqube_saml
-        - saml_sp
-
-    - name: Jenkins SAML SP configuration
-      ansible.builtin.include_role:
-        name: jenkins_saml_config
-      when: inventory_hostname in groups['jenkins']
-      tags:
-        - jenkins_saml
-        - saml_sp
+- import_playbook: freeipa_prep.yml
+- import_playbook: keycloak_config.yml
+- import_playbook: sonarqube_saml.yml
+- import_playbook: jenkins_saml.yml

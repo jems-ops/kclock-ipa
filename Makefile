@@ -1,66 +1,45 @@
-.PHONY: help lint check site freeipa-prep keycloak-config sonarqube-saml jenkins-saml saml-apps \
-        vault-encrypt vault-edit vault-view
+.PHONY: help lint freeipa-prep keycloak-config sonarqube-saml jenkins-saml site \
+        vault-encrypt vault-edit vault-view check
 
-INVENTORY  := inventory
-PLAYBOOK   := playbooks/site.yml
-VAULT_FILE := group_vars/all/vault.yml
-
-ANSIBLE    := ansible-playbook -i $(INVENTORY) $(PLAYBOOK)
-
-# Optional knobs:
-#   make <target> LIMIT=jenkins.local     narrow the run to a single host
-#   make site     TAGS=keycloak_config    pass tags directly to site
-LIMIT ?=
-TAGS  ?=
-LIMIT_ARG := $(if $(LIMIT),--limit $(LIMIT),)
-TAGS_ARG  := $(if $(TAGS),--tags $(TAGS),)
+INVENTORY   := inventory
+VAULT_FILE  := group_vars/all/vault.yml
 
 help:
-	@echo "Usage: make <target> [LIMIT=host] [TAGS=tag,tag]"
+	@echo "Usage: make <target>"
 	@echo ""
-	@echo "Playbook targets (all drive playbooks/site.yml with tags):"
-	@echo "  site             Run every play                            (no tag filter)"
-	@echo "  freeipa-prep     Tag: freeipa_prep    FreeIPA bind account + CA export"
-	@echo "  keycloak-config  Tag: keycloak_config Keycloak realm, LDAP fed, SAML clients"
-	@echo "  sonarqube-saml   Tag: sonarqube_saml  SonarQube SAML settings"
-	@echo "  jenkins-saml     Tag: jenkins_saml    Jenkins SAML config.xml"
-	@echo "  saml-apps        Tag: saml_sp         All SAML SPs (SonarQube + Jenkins)"
+	@echo "Playbook targets:"
+	@echo "  site            Run the full site playbook (all three steps)"
+	@echo "  freeipa-prep    Prepare FreeIPA bind account and export CA"
+	@echo "  keycloak-config Configure Keycloak realm, LDAP federation, SAML clients"
+	@echo "  sonarqube-saml  Push SAML config to SonarQube via API"
+	@echo "  jenkins-saml    Push SAML config to Jenkins (config.xml template + restart)"
 	@echo ""
 	@echo "Check / lint:"
-	@echo "  check            Dry-run site.yml"
-	@echo "  lint             Run ansible-lint"
+	@echo "  check           Dry-run the full site playbook"
+	@echo "  lint            Run ansible-lint"
 	@echo ""
 	@echo "Vault:"
-	@echo "  vault-encrypt    Encrypt the vault file"
-	@echo "  vault-edit       Edit the encrypted vault file"
-	@echo "  vault-view       View the encrypted vault file"
-	@echo ""
-	@echo "Examples:"
-	@echo "  make site"
-	@echo "  make keycloak-config"
-	@echo "  make saml-apps LIMIT=sonar.local"
-	@echo "  make site TAGS=keycloak_config,sonarqube_saml LIMIT=keycloak.local"
+	@echo "  vault-encrypt   Encrypt the vault file"
+	@echo "  vault-edit      Edit the encrypted vault file"
+	@echo "  vault-view      View the encrypted vault file"
 
 site:
-	$(ANSIBLE) $(TAGS_ARG) $(LIMIT_ARG)
+	ansible-playbook -i $(INVENTORY) playbooks/site.yml
 
 freeipa-prep:
-	$(ANSIBLE) --tags freeipa_prep $(LIMIT_ARG)
+	ansible-playbook -i $(INVENTORY) playbooks/freeipa_prep.yml
 
 keycloak-config:
-	$(ANSIBLE) --tags keycloak_config $(LIMIT_ARG)
+	ansible-playbook -i $(INVENTORY) playbooks/keycloak_config.yml
 
 sonarqube-saml:
-	$(ANSIBLE) --tags sonarqube_saml $(LIMIT_ARG)
+	ansible-playbook -i $(INVENTORY) playbooks/sonarqube_saml.yml
 
 jenkins-saml:
-	$(ANSIBLE) --tags jenkins_saml $(LIMIT_ARG)
-
-saml-apps:
-	$(ANSIBLE) --tags saml_sp $(LIMIT_ARG)
+	ansible-playbook -i $(INVENTORY) playbooks/jenkins_saml.yml
 
 check:
-	$(ANSIBLE) --check $(TAGS_ARG) $(LIMIT_ARG)
+	ansible-playbook -i $(INVENTORY) playbooks/site.yml --check
 
 lint:
 	ansible-lint
