@@ -40,6 +40,13 @@ freeipa_bind_password:  "{{ vault_freeipa_bind_password }}"
 freeipa_admin_user:     admin
 freeipa_admin_password: "{{ vault_freeipa_admin_password }}"
 
+# Canonical per-app admin groups to ensure exist in FreeIPA. Names should match
+# the target app's built-in admin group so SAML group sync grants admin with no
+# per-app permission grants required.
+freeipa_app_admin_groups:
+  - name: sonar-administrators
+    desc: SonarQube administrators (matches built-in sonar-administrators)
+
 freeipa_ldap_scheme: "ldap"
 freeipa_ldap_port:   389
 freeipa_ldap_url:    "{{ freeipa_ldap_scheme }}://{{ freeipa_hostname }}:{{ freeipa_ldap_port }}"
