@@ -1,0 +1,17 @@
+{
+  "name": "{{ artifactory_saml_name }}",
+  "enable_integration": true,
+  "verify_audience_restriction": {{ artifactory_saml_verify_audience_restriction | to_json }},
+  "login_url": "{{ artifactory_saml_login_url }}",
+  "logout_url": "{{ artifactory_saml_logout_url }}",
+  "certificate": "{{ keycloak_signing_cert }}",
+  "service_provider_name": "{{ artifactory_saml_service_provider_name }}",
+  "auto_user_creation": {{ artifactory_saml_auto_user_creation | to_json }},
+  "allow_user_to_access_profile": {{ artifactory_saml_allow_user_to_access_profile | to_json }},
+  "use_encrypted_assertion": {{ artifactory_saml_use_encrypted_assertion | to_json }},
+  "auto_redirect": {{ artifactory_saml_auto_redirect | to_json }},
+  "sync_groups": {{ artifactory_saml_sync_groups | to_json }},
+  "group_attribute": "{{ artifactory_saml_group_attr }}",
+  "email_attribute": "{{ artifactory_saml_email_attr }}",
+  "name_id_attribute": "{{ artifactory_saml_nameid_attr }}"
+}

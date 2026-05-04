@@ -1,0 +1,8 @@
+---
+# keycloak_saml_metadata_url, keycloak_saml_login_url, artifactory_base_url,
+# artifactory_api_token and other Artifactory SAML vars are defined centrally
+# in group_vars/all/main.yml — do not redeclare here.
+
+artifactory_validate_certs: false
+artifactory_service_name:   artifactory
+artifactory_port:           8082

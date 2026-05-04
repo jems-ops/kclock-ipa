@@ -9,10 +9,28 @@ freeipa.local ansible_host=192.168.56.14
 keycloak.local ansible_host=192.168.56.12
 
 [sonarqube]
-sonar.local ansible_host=192.168.56.18
+sonar.local ansible_host=192.168.56.16
 
 [jenkins]
 jenkins.local ansible_host=192.168.56.13
+
+[jira]
+jira.local ansible_host=192.168.56.20
+
+[confluence]
+confluence.local ansible_host=192.168.56.21
+
+[bitbucket]
+bitbucket.local ansible_host=192.168.56.22
+
+[nessus]
+nessus.local ansible_host=192.168.56.23
+
+[artifactory]
+artifactory.local ansible_host=192.168.56.17
+
+[wazuh]
+wazuh.va2.magellan.net ansible_host=192.168.56.24
 
 # Group variables for all hosts
 [all:vars]

@@ -1,0 +1,39 @@
+---
+- name: Read back SAML configuration from {{ atlassian_product | capitalize }}
+  ansible.builtin.uri:
+    url: "{{ atlassian_saml_api_url }}"
+    method: GET
+    user: "{{ atlassian_admin_user }}"
+    password: "{{ atlassian_admin_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ atlassian_validate_certs }}"
+    headers:
+      Accept: "application/json"
+    status_code: [200]
+  register: saml_readback
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+
+- name: Verify IdP issuer matches Keycloak realm
+  ansible.builtin.assert:
+    that:
+      - saml_readback.json.ssoIssuer == keycloak_realm_base_url
+    fail_msg: >-
+      SAML issuer mismatch on {{ atlassian_product | capitalize }}.
+      Expected '{{ keycloak_realm_base_url }}',
+      got '{{ saml_readback.json.ssoIssuer | default("(empty)") }}'.
+
+- name: Display completion message
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "{{ atlassian_product | capitalize }} SAML SSO configured."
+      - ""
+      - "To test SSO:"
+      - "  1. Open {{ atlassian_base_url }} in a private browser"
+      - "  2. Click 'Log in with SSO' or the SAML login button"
+      - "  3. Authenticate with a FreeIPA user via Keycloak"
+      - "  4. Verify you are logged in to {{ atlassian_product | capitalize }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

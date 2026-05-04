@@ -1,11 +1,11 @@
 {
-  "name": "groups",
+  "name": "{{ item.group_mapper_name | default('groups') }}",
   "protocol": "saml",
   "protocolMapper": "saml-group-membership-mapper",
   "config": {
-    "attribute.name":       "groups",
+    "attribute.name":       "{{ item.group_attribute_name | default('groups') }}",
     "attribute.nameformat": "Basic",
-    "friendly.name":        "groups",
+    "friendly.name":        "{{ item.group_friendly_name | default(item.group_attribute_name | default('groups')) }}",
     "single":               "true",
     "full.path":            "false"
   }

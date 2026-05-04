@@ -1,0 +1,12 @@
+---
+# Configures Wazuh / OpenSearch Dashboards SAML authentication.
+#
+# Prerequisite: run keycloak_config.yml first so the Wazuh SAML client and
+# realm exist in Keycloak.
+
+- name: Configure Wazuh SAML settings
+  hosts: wazuh
+  become: true
+  gather_facts: false
+  roles:
+    - wazuh_saml_config

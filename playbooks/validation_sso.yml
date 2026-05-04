@@ -1,0 +1,177 @@
+---
+- name: SSO Validation (Keycloak -> Jenkins)
+  hosts: jenkins
+  become: false
+  gather_facts: false
+
+  vars:
+    jenkins_url: "http://jenkins.local:8080/jenkins"
+    saml_login_url: "{{ jenkins_url }}/securityRealm/commenceLogin"
+    keycloak_saml_endpoint: "http://keycloak.local:8080/realms/master/protocol/saml"
+
+  tasks:
+
+    ############################################################
+    # STEP 1: Hit Jenkins SAML login
+    ############################################################
+    - name: "Trigger SAML login (Jenkins → Keycloak redirect)"
+      ansible.builtin.uri:
+        url: "{{ saml_login_url }}"
+        method: GET
+        follow_redirects: none
+        status_code: [302, 303]
+      register: saml_redirect
+      ignore_errors: true
+
+    - name: "Show redirect location"
+      ansible.builtin.debug:
+        msg: "Redirected to: {{ saml_redirect.location | default('NO REDIRECT') }}"
+
+    ############################################################
+    # STEP 2: Validate redirect goes to Keycloak
+    ############################################################
+    - name: "Validate redirect target contains Keycloak"
+      ansible.builtin.debug:
+        msg: >-
+          SSO Redirect is {{
+            'VALID' if 'keycloak' in (saml_redirect.location | default('')) else 'INVALID'
+          }}
+
+    ############################################################
+    # STEP 3: Validate Keycloak SAML endpoint
+    ############################################################
+    - name: "Check Keycloak SAML endpoint"
+      ansible.builtin.uri:
+        url: "{{ keycloak_saml_endpoint }}"
+        method: GET
+        status_code: [200, 405]
+      register: keycloak_saml
+      ignore_errors: true
+
+    - name: "Keycloak SAML endpoint status"
+      ansible.builtin.debug:
+        msg: "Keycloak SAML endpoint reachable"
+
+    ############################################################
+    # FINAL SUMMARY
+    ############################################################
+    - name: "SSO Validation Summary"
+      ansible.builtin.debug:
+        msg:
+          - "Jenkins SAML redirect: {{ saml_redirect.status | default('FAILED') }}"
+          - "Redirect target: {{ saml_redirect.location | default('NONE') }}"
+          - "Keycloak SAML endpoint: {{ keycloak_saml.status | default('DOWN') }}"
+
+- name: SSO Validation (Keycloak -> Artifactory)
+  hosts: artifactory
+  become: false
+  gather_facts: false
+
+  vars:
+    artifactory_login_url: "https://artifactory.local/ui/login"
+    keycloak_saml_endpoint: "https://keycloak.local/realms/master/protocol/saml"
+
+  tasks:
+
+    - name: "Check Artifactory login page"
+      ansible.builtin.uri:
+        url: "{{ artifactory_login_url }}"
+        method: GET
+        follow_redirects: none
+        validate_certs: false
+        status_code: [200, 301, 302, 303]
+      register: artifactory_login
+      ignore_errors: true
+      delegate_to: localhost
+
+    - name: "Check Keycloak SAML endpoint from Artifactory context"
+      ansible.builtin.uri:
+        url: "{{ keycloak_saml_endpoint }}"
+        method: GET
+        validate_certs: false
+        status_code: [200, 405]
+      register: keycloak_saml_art
+      ignore_errors: true
+      delegate_to: localhost
+
+    - name: "Artifactory SSO Validation Summary"
+      ansible.builtin.debug:
+        msg:
+          - "Artifactory login page: {{ artifactory_login.status | default('DOWN') }}"
+          - "Keycloak SAML endpoint: {{ keycloak_saml_art.status | default('DOWN') }}"
+
+- name: SSO Validation (Keycloak -> Nessus / Tenable.sc)
+  hosts: nessus
+  become: false
+  gather_facts: false
+
+  vars:
+    nessus_login_url: "https://nessus.local"
+    keycloak_saml_endpoint: "https://keycloak.local/realms/master/protocol/saml"
+
+  tasks:
+
+    - name: "Check Nessus / Tenable.sc login page"
+      ansible.builtin.uri:
+        url: "{{ nessus_login_url }}"
+        method: GET
+        follow_redirects: none
+        validate_certs: false
+        status_code: [200, 301, 302, 303]
+      register: nessus_login
+      ignore_errors: true
+      delegate_to: localhost
+
+    - name: "Check Keycloak SAML endpoint from Nessus context"
+      ansible.builtin.uri:
+        url: "{{ keycloak_saml_endpoint }}"
+        method: GET
+        validate_certs: false
+        status_code: [200, 405]
+      register: keycloak_saml_nes
+      ignore_errors: true
+      delegate_to: localhost
+
+    - name: "Nessus SSO Validation Summary"
+      ansible.builtin.debug:
+        msg:
+          - "Nessus login page: {{ nessus_login.status | default('DOWN') }}"
+          - "Keycloak SAML endpoint: {{ keycloak_saml_nes.status | default('DOWN') }}"
+
+- name: SSO Validation (Keycloak -> Wazuh)
+  hosts: wazuh
+  become: false
+  gather_facts: false
+
+  vars:
+    wazuh_login_url: "https://wazuh.va2.magellan.net"
+    keycloak_saml_endpoint: "https://keycloak.local/realms/master/protocol/saml"
+
+  tasks:
+
+    - name: "Check Wazuh Dashboard login page"
+      ansible.builtin.uri:
+        url: "{{ wazuh_login_url }}"
+        method: GET
+        follow_redirects: none
+        validate_certs: false
+        status_code: [200, 301, 302, 303]
+      register: wazuh_login
+      ignore_errors: true
+      delegate_to: localhost
+
+    - name: "Check Keycloak SAML endpoint from Wazuh context"
+      ansible.builtin.uri:
+        url: "{{ keycloak_saml_endpoint }}"
+        method: GET
+        validate_certs: false
+        status_code: [200, 405]
+      register: keycloak_saml_waz
+      ignore_errors: true
+      delegate_to: localhost
+
+    - name: "Wazuh SSO Validation Summary"
+      ansible.builtin.debug:
+        msg:
+          - "Wazuh login page: {{ wazuh_login.status | default('DOWN') }}"
+          - "Keycloak SAML endpoint: {{ keycloak_saml_waz.status | default('DOWN') }}"

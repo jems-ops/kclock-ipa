@@ -1,0 +1,15 @@
+---
+# keycloak_saml_metadata_url, keycloak_realm_base_url, wazuh_base_url,
+# and wazuh_saml_* settings are defined centrally in group_vars/all/main.yml.
+
+wazuh_validate_certs: false
+
+# Filesystem paths on the Wazuh host.
+wazuh_indexer_security_config: /etc/wazuh-indexer/opensearch-security/config.yml
+wazuh_dashboard_config:        /etc/wazuh-dashboard/opensearch_dashboards.yml
+wazuh_indexer_certs_dir:       /etc/wazuh-indexer/certs
+wazuh_securityadmin:           /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh
+
+# Service names for systemd.
+wazuh_indexer_service:   wazuh-indexer
+wazuh_dashboard_service: wazuh-dashboard

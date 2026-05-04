@@ -1,0 +1,46 @@
+---
+- name: Local Service Validation
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+
+    - name: "Keycloak local check"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/realms/master"
+        status_code: 200
+      register: kc
+      ignore_errors: true
+      when: "'keycloak' in inventory_hostname"
+
+    - name: "LDAP local check"
+      ansible.builtin.wait_for:
+        port: 389
+        host: 127.0.0.1
+        timeout: 3
+      register: ldap
+      ignore_errors: true
+      when: "'freeipa' in inventory_hostname"
+
+    - name: "Jenkins local check"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/jenkins"
+        status_code: [200,403]
+      register: jenkins
+      ignore_errors: true
+      when: "'jenkins' in inventory_hostname"
+
+    - name: "Sonar local check"
+      ansible.builtin.wait_for:
+        port: 9000
+        host: 127.0.0.1
+        timeout: 5
+      register: sonar
+      ignore_errors: true
+      when: "'sonar' in inventory_hostname"
+
+    - name: "Local Summary"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"

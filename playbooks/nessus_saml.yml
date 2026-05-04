@@ -1,0 +1,12 @@
+---
+# Configures Nessus / Tenable.sc SAML authentication.
+#
+# Prerequisite: run keycloak_config.yml first so the Nessus SAML client and
+# realm exist in Keycloak.
+
+- name: Configure Nessus SAML settings
+  hosts: nessus
+  become: true
+  gather_facts: false
+  roles:
+    - nessus_saml_config

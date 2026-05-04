@@ -1,0 +1,18 @@
+---
+# keycloak_saml_metadata_url, keycloak_realm_base_url, keycloak_saml_login_url,
+# nessus_base_url are defined centrally in group_vars/all/main.yml — do not
+# redeclare here.
+#
+# nessus_tsc_admin_user / nessus_tsc_admin_password are in group_vars/all/main.yml
+# backed by vault.
+
+# TLS validation for controller-side metadata fetch and TSC API calls.
+# Self-signed certs in lab → false.
+nessus_validate_certs: false
+
+# SAML setting fields sent to Tenable.sc /rest/saml/1.
+# Override only if your deployment differs from the Keycloak defaults.
+nessus_saml_name:        "SAML"
+nessus_saml_description: "SAML SSO Integration with Keycloak"
+nessus_saml_type:        "saml2"
+nessus_saml_username_attr: "email"

@@ -1,0 +1,11 @@
+{
+  "name": "{{ item.role_mapper_name }}",
+  "protocol": "saml",
+  "protocolMapper": "saml-role-list-mapper",
+  "config": {
+    "attribute.name":       "{{ item.role_attribute_name | default('Roles') }}",
+    "attribute.nameformat": "Basic",
+    "friendly.name":        "{{ item.role_mapper_name }}",
+    "single":               "true"
+  }
+}

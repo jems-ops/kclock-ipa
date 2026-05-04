@@ -1,0 +1,12 @@
+---
+# Configures Artifactory SAML authentication via the Access SAML API.
+#
+# Prerequisite: run keycloak_config.yml first so the Artifactory SAML client and
+# realm exist in Keycloak.
+
+- name: Configure Artifactory SAML settings
+  hosts: artifactory
+  become: true
+  gather_facts: false
+  roles:
+    - artifactory_saml_config

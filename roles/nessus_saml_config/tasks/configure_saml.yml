@@ -1,0 +1,89 @@
+---
+# Configure Tenable.sc SAML through its REST API.
+# API flow:
+#   1. POST /rest/token
+#   2. GET /rest/saml/1
+#   3. PATCH /rest/saml/1
+
+- name: Authenticate to Security Center API
+  ansible.builtin.uri:
+    url: "{{ nessus_base_url }}/rest/token"
+    method: POST
+    body_format: json
+    body:
+      username: "{{ nessus_tsc_admin_user }}"
+      password: "{{ nessus_tsc_admin_password }}"
+    status_code: 200
+    validate_certs: "{{ nessus_validate_certs }}"
+    return_content: true
+  register: tsc_auth_response
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true
+
+- name: Set Security Center session auth facts
+  ansible.builtin.set_fact:
+    tsc_session_token: "{{ tsc_auth_response.json.response.token }}"
+    tsc_session_cookie: "{{ tsc_auth_response.cookies_string | default(tsc_auth_response.cookie_string | default('')) }}"
+  no_log: true
+
+- name: Build Nessus SAML API payload
+  ansible.builtin.set_fact:
+    nessus_saml_payload:
+      name: "{{ nessus_saml_name }}"
+      description: "{{ nessus_saml_description }}"
+      type: "{{ nessus_saml_type }}"
+      entityID: "{{ keycloak_realm_base_url }}"
+      idp: "{{ keycloak_realm_base_url }}"
+      usernameAttribute: "{{ nessus_saml_username_attr }}"
+      singleSignOnService: "{{ keycloak_saml_login_url }}"
+      singleLogoutService: "{{ keycloak_saml_login_url }}"
+      certData: "{{ keycloak_signing_cert }}"
+      samlEnabled: "true"
+
+- name: Get current Nessus SAML configuration
+  ansible.builtin.uri:
+    url: "{{ nessus_base_url }}/rest/saml/1"
+    method: GET
+    headers:
+      X-SecurityCenter: "{{ tsc_session_token }}"
+      Cookie: "{{ tsc_session_cookie }}"
+    status_code: 200
+    validate_certs: "{{ nessus_validate_certs }}"
+    return_content: true
+  register: nessus_current_saml_config
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true
+
+- name: Configure Nessus SAML via REST API
+  ansible.builtin.uri:
+    url: "{{ nessus_base_url }}/rest/saml/1"
+    method: PATCH
+    headers:
+      X-SecurityCenter: "{{ tsc_session_token }}"
+      Cookie: "{{ tsc_session_cookie }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ nessus_saml_payload }}"
+    status_code: 200
+    validate_certs: "{{ nessus_validate_certs }}"
+    return_content: true
+  register: nessus_saml_config_result
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true
+
+- name: Confirm Nessus SAML API update
+  ansible.builtin.debug:
+    msg:
+      - "Nessus / Tenable.sc SAML PATCH completed."
+      - "Endpoint: {{ nessus_base_url }}/rest/saml/1"
+      - "Entity ID: {{ keycloak_realm_base_url }}"
+      - "Username attribute: {{ nessus_saml_username_attr }}"

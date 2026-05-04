@@ -1,54 +1,61 @@
-.PHONY: help lint freeipa-prep keycloak-config sonarqube-saml jenkins-saml site \
-        vault-encrypt vault-edit vault-view check
-
-INVENTORY   := inventory
-VAULT_FILE  := group_vars/all/vault.yml
+.PHONY: help deploy prep keycloak validate jenkins sonar artifactory nessus wazuh logs clean
 
 help:
-	@echo "Usage: make <target>"
-	@echo ""
-	@echo "Playbook targets:"
-	@echo "  site            Run the full site playbook (all three steps)"
-	@echo "  freeipa-prep    Prepare FreeIPA bind account and export CA"
-	@echo "  keycloak-config Configure Keycloak realm, LDAP federation, SAML clients"
-	@echo "  sonarqube-saml  Push SAML config to SonarQube via API"
-	@echo "  jenkins-saml    Push SAML config to Jenkins (config.xml template + restart)"
-	@echo ""
-	@echo "Check / lint:"
-	@echo "  check           Dry-run the full site playbook"
-	@echo "  lint            Run ansible-lint"
-	@echo ""
-	@echo "Vault:"
-	@echo "  vault-encrypt   Encrypt the vault file"
-	@echo "  vault-edit      Edit the encrypted vault file"
-	@echo "  vault-view      View the encrypted vault file"
+	@echo "SSO CLI Makefile"
+	@echo "-------------------------"
+	@echo "make deploy      - Full deployment"
+	@echo "make prep        - Prepare FreeIPA"
+	@echo "make keycloak    - Configure Keycloak"
+	@echo "make validate    - Run validation"
+	@echo "make jenkins     - Onboard Jenkins"
+	@echo "make sonar       - Onboard SonarQube"
+	@echo "make artifactory - Onboard Artifactory"
+	@echo "make nessus      - Onboard Nessus"
+	@echo "make wazuh       - Onboard Wazuh"
+	@echo "make logs        - Tail CLI logs"
+	@echo "make clean       - Cleanup temp/logs"
 
-site:
-	ansible-playbook -i $(INVENTORY) playbooks/site.yml
+deploy:
+	sso-cli deploy
 
-freeipa-prep:
-	ansible-playbook -i $(INVENTORY) playbooks/freeipa_prep.yml
+prep:
+	sso-cli prep
 
-keycloak-config:
-	ansible-playbook -i $(INVENTORY) playbooks/keycloak_config.yml
+keycloak:
+	sso-cli keycloak
 
-sonarqube-saml:
-	ansible-playbook -i $(INVENTORY) playbooks/sonarqube_saml.yml
+validate:
+	sso-cli validate
 
-jenkins-saml:
-	ansible-playbook -i $(INVENTORY) playbooks/jenkins_saml.yml
+jenkins:
+	sso-cli onboard-app jenkins
 
-check:
-	ansible-playbook -i $(INVENTORY) playbooks/site.yml --check
+sonar:
+	sso-cli onboard-app sonar
 
-lint:
-	ansible-lint
+artifactory:
+	sso-cli onboard-app artifactory
 
-vault-encrypt:
-	ansible-vault encrypt $(VAULT_FILE)
+nessus:
+	sso-cli onboard-app nessus
 
-vault-edit:
-	ansible-vault edit $(VAULT_FILE)
+wazuh:
+	sso-cli onboard-app wazuh
 
-vault-view:
-	ansible-vault view $(VAULT_FILE)
+validate-local:
+	sso-cli validate-local
+
+validate-dns:
+	sso-cli validate-dns
+
+validate-sso:
+	sso-cli validate-sso
+
+test-login:
+	sso-cli test-login
+
+logs:
+	tail -f sso-cli.log
+
+clean:
+	rm -f sso-cli.log

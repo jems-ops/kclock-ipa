@@ -5,16 +5,27 @@
   "protocol":    "saml",
   "baseUrl":     "{{ item.item.base_url }}",
   "adminUrl":    "{{ item.item.admin_url }}",
+  "rootUrl":     "{{ item.item.root_url | default(item.item.base_url) }}",
   "redirectUris": {{ item.item.redirect_uris | to_json }},
   "defaultClientScopes": [],
   "optionalClientScopes": [],
+  "frontchannelLogout": {{ item.item.front_channel_logout | default(false) | to_json }},
   "attributes": {
     "saml.assertion.signature":         "{{ item.item.sign_assertions }}",
     "saml.server.signature":            "{{ item.item.sign_documents }}",
     "saml.force.post.binding":          "{{ item.item.force_post_binding }}",
+    "saml.artifact.binding":            "{{ item.item.artifact_binding | default('false') }}",
     "saml.authnstatement":              "{{ item.item.include_authnstatement }}",
     "saml.client.signature":            "false",
-    "saml_name_id_format":              "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-    "saml_assertion_consumer_url_post": "{{ item.item.acs_url }}"
+    "saml_name_id_format":              "{{ item.item.nameid_format | default('email') }}",
+    "saml_force_name_id_format":        "{{ item.item.force_nameid_format | default('false') }}",
+    "saml.signature.algorithm":         "{{ item.item.signature_algorithm | default('RSA_SHA256') }}",
+    "saml_signature_canonicalization_method": "{{ item.item.signature_canonicalization_method | default('http://www.w3.org/2001/10/xml-exc-c14n#') }}",
+    "saml.server.signature.keyinfo.xmlSigKeyInfoKeyNameTransformer": "{{ item.item.signature_key_name | default('KEY_ID') }}",
+    "saml.server.signature.keyinfo.ext": "{{ item.item.optimize_redirect_signing_key_lookup | default('false') }}",
+    "saml_assertion_consumer_url_post": "{{ item.item.acs_url }}",
+    "saml.onetimeuse.condition":        "{{ item.item.onetimeuse_condition | default('false') }}",
+    "saml.allow.ecp.flow":              "{{ item.item.allow_ecp_flow | default('false') }}",
+    "saml_idp_initiated_sso_url_name":  "{{ item.item.idp_initiated_sso_url_name | default('') }}"
   }
 }

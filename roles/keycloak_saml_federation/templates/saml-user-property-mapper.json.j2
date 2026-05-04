@@ -6,6 +6,6 @@
     "attribute.name":       "{{ item.1.saml_name }}",
     "friendly.name":        "{{ item.1.friendly_name }}",
     "user.attribute":       "{{ item.1.property }}",
-    "attribute.nameformat": "Basic"
+    "attribute.nameformat": "{{ item.1.nameformat | default('Basic') }}"
   }
 }

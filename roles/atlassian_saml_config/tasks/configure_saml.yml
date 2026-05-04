@@ -1,0 +1,36 @@
+---
+# Configure SAML SSO on the Atlassian product via its authentication REST API.
+# Jira/Confluence use /rest/authconfig/1.0/saml;
+# Bitbucket uses /rest/authconfig/latest/saml/configuration.
+# The JSON payload is compatible across all three products.
+
+- name: Push SAML configuration to {{ atlassian_product | capitalize }}
+  ansible.builtin.uri:
+    url: "{{ atlassian_saml_api_url }}"
+    method: PUT
+    user: "{{ atlassian_admin_user }}"
+    password: "{{ atlassian_admin_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ atlassian_validate_certs }}"
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body:
+      ssoIssuer: "{{ keycloak_realm_base_url }}"
+      ssoLoginUrl: "{{ keycloak_saml_login_url }}"
+      certificate: "{{ keycloak_signing_cert }}"
+      userAttribute: "{{ atlassian_saml_username_attr }}"
+      enableRememberMe: false
+      enableIdpInitiatedSso: false
+    status_code: [200, 204]
+  register: saml_config_result
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true
+
+- name: Confirm SAML configuration applied
+  ansible.builtin.debug:
+    msg: "SAML SSO configuration pushed to {{ atlassian_product | capitalize }} (HTTP {{ saml_config_result.status }})"

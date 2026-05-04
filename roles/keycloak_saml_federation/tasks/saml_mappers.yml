@@ -123,6 +123,7 @@
   loop: "{{ keycloak_saml_clients }}"
   loop_control:
     label: "{{ item.name }}"
+  when: item.group_mapper_enabled | default(true)
 
 - name: Apply group mapper
   ansible.builtin.command: >
@@ -140,3 +141,36 @@
   loop: "{{ keycloak_saml_clients }}"
   loop_control:
     label: "{{ item.name }}"
+  when: item.group_mapper_enabled | default(true)
+
+# ------------------------------------------
+# 7. Role list mapper (e.g. Wazuh wazuhRoleKey)
+# ------------------------------------------
+
+- name: Render role list mapper payloads
+  ansible.builtin.template:
+    src: saml-role-list-mapper.json.j2
+    dest: "{{ keycloak_tmp_dir }}/roles-{{ item.name }}.json"
+    mode: "0600"
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.role_mapper_enabled | default(false)
+
+- name: Apply role list mapper
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create
+    clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models
+    -r {{ keycloak_realm }}
+    -f {{ keycloak_tmp_dir }}/roles-{{ item.name }}.json
+  register: role_mapper_result
+  failed_when:
+    - role_mapper_result.rc != 0
+    - "'exists' not in role_mapper_result.stderr"
+  changed_when:
+    - role_mapper_result.rc == 0
+    - "'exists' not in role_mapper_result.stderr"
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.role_mapper_enabled | default(false)

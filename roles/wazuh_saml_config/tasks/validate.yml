@@ -1,0 +1,31 @@
+---
+- name: Verify wazuh-dashboard is running
+  ansible.builtin.systemd:
+    name: "{{ wazuh_dashboard_service }}"
+  register: wazuh_dashboard_status
+  become: true
+
+- name: Assert wazuh-dashboard is active
+  ansible.builtin.assert:
+    that:
+      - wazuh_dashboard_status.status.ActiveState == "active"
+    fail_msg: "wazuh-dashboard is not running after SAML configuration."
+
+- name: Verify wazuh-indexer is running
+  ansible.builtin.systemd:
+    name: "{{ wazuh_indexer_service }}"
+  register: wazuh_indexer_status
+  become: true
+
+- name: Assert wazuh-indexer is active
+  ansible.builtin.assert:
+    that:
+      - wazuh_indexer_status.status.ActiveState == "active"
+    fail_msg: "wazuh-indexer is not running after SAML configuration."
+
+- name: Display Wazuh SAML login URL
+  ansible.builtin.debug:
+    msg: |
+      Wazuh SAML SSO configured successfully
+      Login URL: {{ wazuh_base_url }}
+      Users will be redirected to Keycloak for authentication.

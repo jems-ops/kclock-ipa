@@ -1,0 +1,21 @@
+---
+# keycloak_saml_metadata_url, keycloak_realm_base_url, keycloak_saml_login_url,
+# *_base_url, atlassian_admin_user/password are defined centrally in
+# group_vars/all/main.yml — do not redeclare here.
+
+# Product type — set per-playbook via role vars.  Valid: jira, confluence, bitbucket
+atlassian_product: ""
+
+# TLS validation for controller-side metadata fetch (self-signed Keycloak in lab → false).
+atlassian_validate_certs: false
+
+# REST API paths for SAML configuration (per-product).
+# Jira and Confluence share the same endpoint; Bitbucket uses a different one.
+atlassian_saml_api_paths:
+  jira:       "/rest/authconfig/1.0/saml"
+  confluence: "/rest/authconfig/1.0/saml"
+  bitbucket:  "/rest/authconfig/latest/saml/configuration"
+
+# SAML attribute mappings that the Atlassian side reads from the assertion.
+# These must match the Keycloak SAML client mappers defined in group_vars.
+atlassian_saml_username_attr: "NameID"

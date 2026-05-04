@@ -1,0 +1,24 @@
+---
+- import_tasks: retrieve_cert.yml
+
+- block:
+    - import_tasks: configure_saml.yml
+    - import_tasks: validate.yml
+  always:
+    - name: Logout from Security Center API
+      ansible.builtin.uri:
+        url: "{{ nessus_base_url }}/rest/token"
+        method: DELETE
+        headers:
+          X-SecurityCenter: "{{ tsc_session_token }}"
+          Cookie: "{{ tsc_session_cookie }}"
+        status_code: 200
+        validate_certs: "{{ nessus_validate_certs }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      no_log: true
+      when:
+        - tsc_session_token is defined
+        - tsc_session_cookie is defined

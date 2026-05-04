@@ -1,0 +1,122 @@
+---
+# Configure Wazuh / OpenSearch SAML authentication.
+#
+# 1. Deploy IdP signing certificate as PEM
+# 2. Merge SAML auth domain into indexer security config.yml
+# 3. Apply security config with securityadmin.sh
+# 4. Configure OpenSearch Dashboards for SAML
+# 5. Restart wazuh-dashboard
+
+# ──────────────────────────────────────────────────────────────────────────
+# 1. Deploy IdP certificate
+# ──────────────────────────────────────────────────────────────────────────
+
+- name: Deploy Keycloak IdP signing certificate
+  ansible.builtin.copy:
+    content: |
+      -----BEGIN CERTIFICATE-----
+      {{ keycloak_signing_cert }}
+      -----END CERTIFICATE-----
+    dest: "{{ wazuh_indexer_certs_dir }}/idp-signing.pem"
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+  become: true
+
+# ──────────────────────────────────────────────────────────────────────────
+# 2. Merge SAML auth domain into security config.yml
+# ──────────────────────────────────────────────────────────────────────────
+
+- name: Read existing Wazuh indexer security config
+  ansible.builtin.slurp:
+    src: "{{ wazuh_indexer_security_config }}"
+  register: existing_security_config
+  become: true
+
+- name: Merge SAML auth domain into security config
+  ansible.builtin.set_fact:
+    merged_security_config: >-
+      {{
+        (existing_security_config.content | b64decode | from_yaml)
+        | combine(saml_config_overlay, recursive=true)
+      }}
+  vars:
+    saml_config_overlay:
+      config:
+        dynamic:
+          authc:
+            saml_auth_domain:
+              http_enabled: true
+              transport_enabled: false
+              order: "{{ wazuh_saml_authc_order }}"
+              http_authenticator:
+                type: saml
+                challenge: true
+                config:
+                  idp:
+                    metadata_url: "{{ keycloak_saml_metadata_url }}"
+                    entity_id: "{{ keycloak_realm_base_url }}"
+                  sp:
+                    entity_id: "{{ wazuh_saml_sp_entity_id }}"
+                  kibana_url: "{{ wazuh_base_url }}"
+                  subject_key: "{{ wazuh_saml_subject_key }}"
+                  roles_key: "{{ wazuh_saml_roles_key }}"
+                  exchange_key: "{{ wazuh_saml_exchange_key }}"
+              authentication_backend:
+                type: noop
+
+- name: Write merged security config
+  ansible.builtin.copy:
+    content: "{{ merged_security_config | to_nice_yaml(indent=2) }}"
+    dest: "{{ wazuh_indexer_security_config }}"
+    backup: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0640"
+  become: true
+  register: security_config_changed
+
+# ──────────────────────────────────────────────────────────────────────────
+# 3. Apply security config with securityadmin.sh
+# ──────────────────────────────────────────────────────────────────────────
+
+- name: Apply security config via securityadmin
+  ansible.builtin.command: >
+    {{ wazuh_securityadmin }}
+    -cd /etc/wazuh-indexer/opensearch-security/
+    -nhnv
+    -cacert {{ wazuh_indexer_certs_dir }}/root-ca.pem
+    -cert {{ wazuh_indexer_certs_dir }}/admin.pem
+    -key {{ wazuh_indexer_certs_dir }}/admin-key.pem
+    -h 127.0.0.1
+  become: true
+  when: security_config_changed.changed
+
+# ──────────────────────────────────────────────────────────────────────────
+# 4. Configure OpenSearch Dashboards for SAML
+# ──────────────────────────────────────────────────────────────────────────
+
+- name: Set SAML auth type in dashboard config
+  ansible.builtin.lineinfile:
+    path: "{{ wazuh_dashboard_config }}"
+    regexp: '^opensearch_security\.auth\.type:'
+    line: 'opensearch_security.auth.type: "saml"'
+    backup: true
+  become: true
+  notify: Restart wazuh-dashboard
+
+- name: Set SAML XSRF allowlist in dashboard config
+  ansible.builtin.lineinfile:
+    path: "{{ wazuh_dashboard_config }}"
+    regexp: '^server\.xsrf\.allowlist:'
+    line: 'server.xsrf.allowlist: ["/_opendistro/_security/saml/acs", "/_opendistro/_security/saml/logout", "/_opendistro/_security/saml/acs/idpinitiated"]'
+  become: true
+  notify: Restart wazuh-dashboard
+
+- name: Disable session keepalive in dashboard config
+  ansible.builtin.lineinfile:
+    path: "{{ wazuh_dashboard_config }}"
+    regexp: '^opensearch_security\.session\.keepalive:'
+    line: 'opensearch_security.session.keepalive: false'
+  become: true
+  notify: Restart wazuh-dashboard

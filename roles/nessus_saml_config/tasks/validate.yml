@@ -1,0 +1,42 @@
+---
+- name: Read back Nessus SAML configuration
+  ansible.builtin.uri:
+    url: "{{ nessus_base_url }}/rest/saml/1"
+    method: GET
+    headers:
+      X-SecurityCenter: "{{ tsc_session_token }}"
+      Cookie: "{{ tsc_session_cookie }}"
+    status_code: 200
+    validate_certs: "{{ nessus_validate_certs }}"
+    return_content: true
+  register: nessus_saml_validation_result
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true
+
+- name: Assert Nessus SAML configuration matches Keycloak
+  ansible.builtin.assert:
+    that:
+      - nessus_saml_validation_result.json.response.entityID == keycloak_realm_base_url
+      - nessus_saml_validation_result.json.response.idp == keycloak_realm_base_url
+      - nessus_saml_validation_result.json.response.usernameAttribute == nessus_saml_username_attr
+      - nessus_saml_validation_result.json.response.singleSignOnService == keycloak_saml_login_url
+      - nessus_saml_validation_result.json.response.singleLogoutService == keycloak_saml_login_url
+      - nessus_saml_validation_result.json.response.samlEnabled | string == "true"
+    fail_msg: "Nessus / Tenable.sc SAML API readback does not match the requested Keycloak settings."
+    success_msg: "Nessus / Tenable.sc SAML API readback matches the requested Keycloak settings."
+
+- name: Display completion message
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Nessus / Tenable.sc SAML SSO configured."
+      - ""
+      - "To test SSO:"
+      - "  1. Open {{ nessus_base_url }} in a private browser"
+      - "  2. Click the SAML / SSO login option"
+      - "  3. Authenticate with a FreeIPA user via Keycloak"
+      - "  4. Verify you are logged in to Tenable.sc"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

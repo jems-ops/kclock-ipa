@@ -1,0 +1,48 @@
+---
+- name: DNS / SSO Path Validation
+  hosts: all
+  become: true
+  gather_facts: false
+
+  vars:
+    keycloak_url: "http://keycloak.local:8080/realms/master"
+    jenkins_url: "http://jenkins.local:8080/jenkins"
+    sonar_url: "http://sonar.local:9000"
+
+  tasks:
+
+    - name: "DNS check"
+      ansible.builtin.command: getent hosts keycloak.local
+      register: dns
+      ignore_errors: true
+      changed_when: false
+
+    - name: "Keycloak DNS check"
+      ansible.builtin.uri:
+        url: "{{ keycloak_url }}"
+        status_code: 200
+      register: kc
+      ignore_errors: true
+      when: "'keycloak' in inventory_hostname"
+
+    - name: "Jenkins DNS check"
+      ansible.builtin.uri:
+        url: "{{ jenkins_url }}"
+        status_code: [200,403]
+      register: jenkins
+      ignore_errors: true
+      when: "'jenkins' in inventory_hostname"
+
+    - name: "Sonar DNS check"
+      ansible.builtin.uri:
+        url: "{{ sonar_url }}"
+        status_code: 200
+      register: sonar
+      ignore_errors: true
+      when: "'sonar' in inventory_hostname"
+
+    - name: "DNS Summary"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "DNS: {{ 'OK' if dns.rc == 0 else 'FAIL' }}"

@@ -1,0 +1,30 @@
+---
+- name: Read back Artifactory SAML setting
+  ansible.builtin.uri:
+    url: "{{ artifactory_saml_setting_endpoint }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ artifactory_api_token }}"
+    status_code: [200]
+    validate_certs: "{{ artifactory_validate_certs }}"
+  register: artifactory_saml_readback
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true
+
+- name: Verify Artifactory SAML setting
+  ansible.builtin.assert:
+    that:
+      - artifactory_saml_readback.json.service_provider_name == artifactory_saml_service_provider_name
+      - artifactory_saml_readback.json.login_url == artifactory_saml_login_url
+      - artifactory_saml_readback.json.name_id_attribute == artifactory_saml_nameid_attr
+    fail_msg: "Artifactory SAML setting readback did not match the expected configuration."
+
+- name: Display Artifactory SAML login URL
+  ansible.builtin.debug:
+    msg: |
+      Artifactory SAML configured successfully
+      Login URL: {{ artifactory_base_url }}/ui/login
+      Users may sign in via the SSO button.

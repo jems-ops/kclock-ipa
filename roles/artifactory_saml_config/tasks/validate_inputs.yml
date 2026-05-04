@@ -1,0 +1,10 @@
+---
+- name: Compute SAML URLs and attributes
+  ansible.builtin.set_fact:
+    artifactory_saml_collection_endpoint: "{{ artifactory_base_url }}/access/api/v1/saml"
+    artifactory_saml_setting_endpoint: "{{ artifactory_base_url }}/access/api/v1/saml/{{ artifactory_saml_name }}"
+    artifactory_saml_general_settings_endpoint: "{{ artifactory_base_url }}/access/api/v1/saml/general_settings"
+
+- name: Confirm Artifactory SAML target
+  ansible.builtin.debug:
+    msg: "Configuring Artifactory SAML setting '{{ artifactory_saml_name }}' at {{ artifactory_base_url }}"

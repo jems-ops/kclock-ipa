@@ -1,0 +1,15 @@
+---
+# Configures Confluence Data Center SAML authentication via the Atlassian REST API.
+# Uses the shared atlassian_saml_config role with atlassian_product set to confluence.
+#
+# Prerequisite: run keycloak_config.yml first so the Confluence SAML client and
+# realm exist in Keycloak.
+
+- name: Configure Confluence SAML settings
+  hosts: confluence
+  become: false
+  gather_facts: false
+  roles:
+    - role: atlassian_saml_config
+      vars:
+        atlassian_product: confluence

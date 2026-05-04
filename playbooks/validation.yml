@@ -1,0 +1,128 @@
+---
+- name: SSO Validation Playbook
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+
+    ############################################################
+    # Keycloak Reachability
+    ############################################################
+    - name: "Validate Keycloak HTTP endpoint"
+      ansible.builtin.uri:
+        url: "http://keycloak.local"
+        method: GET
+        status_code: 200
+        validate_certs: false
+      register: keycloak_http
+      ignore_errors: true
+
+    - name: "Keycloak status"
+      ansible.builtin.debug:
+        msg: >-
+          Keycloak is {{
+            'UP' if keycloak_http.status == 200 else 'DOWN'
+          }}
+
+    ############################################################
+    # LDAP Connectivity (FreeIPA)
+    ############################################################
+    - name: "Check LDAP port"
+      ansible.builtin.shell: nc -zv localhost 389
+      register: ldap_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: "LDAP status"
+      ansible.builtin.debug:
+        msg: >-
+          LDAP is {{
+            'UP' if ldap_check.rc == 0 else 'DOWN'
+          }}
+
+    ############################################################
+    # DNS Resolution
+    ############################################################
+    - name: "Check DNS resolution for keycloak"
+      ansible.builtin.shell: getent hosts keycloak.local
+      register: dns_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: "DNS status"
+      ansible.builtin.debug:
+        msg: >-
+          DNS resolution is {{
+            'WORKING' if dns_check.rc == 0 else 'FAILED'
+          }}
+
+    ############################################################
+    # Jenkins SAML endpoint
+    ############################################################
+    - name: "Check Jenkins endpoint"
+      ansible.builtin.uri:
+        url: "http://jenkins.local/jenkins"
+        method: GET
+        validate_certs: false
+      register: jenkins_check
+      ignore_errors: true
+
+    ############################################################
+    # SonarQube endpoint
+    ############################################################
+    - name: "Check SonarQube endpoint"
+      ansible.builtin.uri:
+        url: "http://sonar.local:9000"
+        method: GET
+        validate_certs: false
+      register: sonar_check
+      ignore_errors: true
+
+    ############################################################
+    # Artifactory endpoint
+    ############################################################
+    - name: "Check Artifactory endpoint"
+      ansible.builtin.uri:
+        url: "https://artifactory.local"
+        method: GET
+        validate_certs: false
+      register: artifactory_check
+      ignore_errors: true
+
+    ############################################################
+    # Nessus / Tenable.sc endpoint
+    ############################################################
+    - name: "Check Nessus endpoint"
+      ansible.builtin.uri:
+        url: "https://nessus.local"
+        method: GET
+        validate_certs: false
+      register: nessus_check
+      ignore_errors: true
+
+    ############################################################
+    # Wazuh endpoint
+    ############################################################
+    - name: "Check Wazuh endpoint"
+      ansible.builtin.uri:
+        url: "https://wazuh.va2.magellan.net"
+        method: GET
+        validate_certs: false
+      register: wazuh_check
+      ignore_errors: true
+
+    ############################################################
+    # Summary
+    ############################################################
+    - name: "Validation Summary"
+      ansible.builtin.debug:
+        msg:
+          - "Keycloak: {{ keycloak_http.status | default('DOWN') }}"
+          - "LDAP: {{ 'UP' if ldap_check.rc == 0 else 'DOWN' }}"
+          - "DNS: {{ 'OK' if dns_check.rc == 0 else 'FAIL' }}"
+          - "Jenkins reachable: {{ jenkins_check.status | default('DOWN') }}"
+          - "Sonar reachable: {{ sonar_check.status | default('DOWN') }}"
+          - "Artifactory reachable: {{ artifactory_check.status | default('DOWN') }}"
+          - "Nessus reachable: {{ nessus_check.status | default('DOWN') }}"
+          - "Wazuh reachable: {{ wazuh_check.status | default('DOWN') }}"

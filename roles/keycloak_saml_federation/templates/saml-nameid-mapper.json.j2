@@ -4,6 +4,6 @@
   "protocolMapper": "saml-user-attribute-nameid-mapper",
   "config": {
     "user.attribute": "{{ item.nameid_user_attribute }}",
-    "saml.nameid.format": "{% if item.nameid_format == 'email' %}urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress{% else %}urn:oasis:names:tc:SAML:2.0:nameid-format:persistent{% endif %}"
+    "saml.nameid.format": "{% if item.nameid_format == 'email' %}urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress{% elif item.nameid_format == 'username' %}urn:oasis:names:tc:SAML:2.0:nameid-format:persistent{% else %}urn:oasis:names:tc:SAML:2.0:nameid-format:persistent{% endif %}"
   }
 }

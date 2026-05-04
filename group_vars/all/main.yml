@@ -5,19 +5,31 @@ ansible_password:        "{{ vault_ansible_password }}"
 ansible_become_password: "{{ vault_ansible_become_password }}"
 
 # Hostname resolution from inventory groups
-freeipa_hostname:   "{{ groups['freeipa'][0] }}"
-keycloak_hostname:  "{{ groups['keycloak'][0] }}"
-sonarqube_hostname: "{{ groups['sonarqube'][0] }}"
-jenkins_hostname:   "{{ groups['jenkins'][0] }}"
+freeipa_hostname:    "{{ groups['freeipa'][0] }}"
+keycloak_hostname:   "{{ groups['keycloak'][0] }}"
+sonarqube_hostname:  "{{ groups['sonarqube'][0] }}"
+jenkins_hostname:    "{{ groups['jenkins'][0] }}"
+jira_hostname:       "{{ groups['jira'][0] }}"
+confluence_hostname: "{{ groups['confluence'][0] }}"
+bitbucket_hostname:  "{{ groups['bitbucket'][0] }}"
+nessus_hostname:     "{{ groups['nessus'][0] }}"
+artifactory_hostname: "{{ groups['artifactory'][0] }}"
+wazuh_hostname:      "{{ groups['wazuh'][0] }}"
 
 # ───────────────────────────────────────────────────────────────────────────
 # Base URLs (derived from hostnames). Override if you use different ports/schemes.
 # Every role MUST reference these instead of hardcoding hostnames or URLs.
 # ───────────────────────────────────────────────────────────────────────────
-freeipa_base_url:   "https://{{ freeipa_hostname }}"
-keycloak_base_url:  "https://{{ keycloak_hostname }}"
-sonarqube_base_url: "https://{{ sonarqube_hostname }}"
-jenkins_base_url:   "https://{{ jenkins_hostname }}"
+freeipa_base_url:    "https://{{ freeipa_hostname }}"
+keycloak_base_url:   "https://{{ keycloak_hostname }}"
+sonarqube_base_url:  "https://{{ sonarqube_hostname }}"
+jenkins_base_url:    "https://{{ jenkins_hostname }}"
+jira_base_url:       "https://{{ jira_hostname }}"
+confluence_base_url: "https://{{ confluence_hostname }}"
+bitbucket_base_url:  "https://{{ bitbucket_hostname }}"
+nessus_base_url:     "https://{{ nessus_hostname }}"
+artifactory_base_url: "https://{{ artifactory_hostname }}"
+wazuh_base_url:       "https://{{ wazuh_hostname }}"
 
 # ───────────────────────────────────────────────────────────────────────────
 # FreeIPA settings
@@ -103,8 +115,19 @@ keycloak_truststore_password: "{{ vault_keycloak_truststore_password }}"
 # Each app has its own ACS path (this is a property of the SAML SP, not of our
 # hosting). Centralized below so there are no hardcoded hostnames or URLs.
 # ───────────────────────────────────────────────────────────────────────────
-sonarqube_saml_acs_path: "/oauth2/callback/saml"
-jenkins_saml_acs_path:   "/securityRealm/finishLogin"
+sonarqube_saml_acs_path:  "/oauth2/callback/saml"
+jenkins_saml_acs_path:    "/securityRealm/finishLogin"
+# All Atlassian DC products use the same SAML consumer path.
+atlassian_saml_acs_path:  "/plugins/servlet/samlconsumer"
+# Nessus / Tenable.sc uses SimpleSAMLphp.
+nessus_saml_acs_path:     "/saml/module.php/saml/sp/saml2-acs.php/1"
+# Nessus entity ID differs from the app URL (Tenable.sc convention).
+nessus_saml_entity_id:    "https://tenable.sc"
+# Artifactory SAML callback endpoint.
+artifactory_saml_login_response_path: "/ui/api/v1/auth/saml/loginResponse/artifactory"
+artifactory_saml_login_response_url:  "{{ artifactory_base_url }}{{ artifactory_saml_login_response_path }}"
+# Wazuh / OpenSearch Dashboards SAML ACS endpoint.
+wazuh_saml_acs_path: "/_opendistro/_security/saml/acs"
 
 keycloak_saml_clients:
   - name:       sonarqube-saml
@@ -120,7 +143,6 @@ keycloak_saml_clients:
     sign_assertions:         "true"
     force_post_binding:      "true"
     include_authnstatement:  "true"
-    # Attribute mappers: user model property → SAML attribute name
     attributes:
       - { property: username, saml_name: username, friendly_name: username }
       - { property: email,    saml_name: email,    friendly_name: email    }
@@ -138,11 +160,200 @@ keycloak_saml_clients:
     sign_assertions:         "true"
     force_post_binding:      "true"
     include_authnstatement:  "true"
-    # Attribute mappers: user model property → SAML attribute name
-    # (Jenkins SAML plugin reads these by attribute name — same schema as SonarQube.)
     attributes:
       - { property: username, saml_name: username, friendly_name: username }
       - { property: email,    saml_name: email,    friendly_name: email    }
+
+  - name:       jira-saml
+    client_id:  "{{ jira_base_url }}"
+    acs_url:    "{{ jira_base_url }}{{ atlassian_saml_acs_path }}"
+    admin_url:  "{{ jira_base_url }}"
+    base_url:   "{{ jira_base_url }}"
+    redirect_uris:
+      - "{{ jira_base_url }}/*"
+    nameid_format:           username
+    nameid_user_attribute:   username
+    sign_documents:          "true"
+    sign_assertions:         "true"
+    force_post_binding:      "true"
+    include_authnstatement:  "true"
+    signature_algorithm:     RSA_SHA256
+    signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
+    signature_key_name:      NONE
+    front_channel_logout:    true
+    group_mapper_name:       group
+    group_attribute_name:    group
+    group_friendly_name:     group
+    attributes:
+      - { property: username,  saml_name: Name,                           friendly_name: Name,      nameformat: Basic }
+      - { property: firstName, saml_name: "urn:oid:2.5.4.42",            friendly_name: givenName, nameformat: URI   }
+      - { property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,    nameformat: URI   }
+      - { property: lastName,  saml_name: "urn:oid:2.5.4.4",             friendly_name: surname,   nameformat: URI   }
+
+  - name:       confluence-saml
+    client_id:  "{{ confluence_base_url }}"
+    acs_url:    "{{ confluence_base_url }}{{ atlassian_saml_acs_path }}"
+    admin_url:  "{{ confluence_base_url }}"
+    base_url:   "{{ confluence_base_url }}"
+    redirect_uris:
+      - "{{ confluence_base_url }}/*"
+    nameid_format:           username
+    nameid_user_attribute:   username
+    sign_documents:          "true"
+    sign_assertions:         "true"
+    force_post_binding:      "true"
+    include_authnstatement:  "true"
+    signature_algorithm:     RSA_SHA256
+    signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
+    signature_key_name:      NONE
+    front_channel_logout:    true
+    group_mapper_name:       group
+    group_attribute_name:    group
+    group_friendly_name:     group
+    attributes:
+      - { property: username,  saml_name: Name,                           friendly_name: Name,      nameformat: Basic }
+      - { property: firstName, saml_name: "urn:oid:2.5.4.42",            friendly_name: givenName, nameformat: URI   }
+      - { property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,    nameformat: URI   }
+      - { property: lastName,  saml_name: "urn:oid:2.5.4.4",             friendly_name: surname,   nameformat: URI   }
+
+  - name:       bitbucket-saml
+    client_id:  "{{ bitbucket_base_url }}"
+    acs_url:    "{{ bitbucket_base_url }}{{ atlassian_saml_acs_path }}"
+    admin_url:  "{{ bitbucket_base_url }}"
+    base_url:   "{{ bitbucket_base_url }}"
+    redirect_uris:
+      - "{{ bitbucket_base_url }}/*"
+    nameid_format:           username
+    nameid_user_attribute:   username
+    sign_documents:          "true"
+    sign_assertions:         "true"
+    force_post_binding:      "true"
+    include_authnstatement:  "true"
+    signature_algorithm:     RSA_SHA256
+    signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
+    signature_key_name:      NONE
+    front_channel_logout:    true
+    group_mapper_name:       group
+    group_attribute_name:    group
+    group_friendly_name:     group
+    attributes:
+      - { property: username,  saml_name: Name,                           friendly_name: Name,      nameformat: Basic }
+      - { property: firstName, saml_name: "urn:oid:2.5.4.42",            friendly_name: givenName, nameformat: URI   }
+      - { property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,    nameformat: URI   }
+      - { property: lastName,  saml_name: "urn:oid:2.5.4.4",             friendly_name: surname,   nameformat: URI   }
+
+  - name:       nessus-saml
+    client_id:  "{{ nessus_saml_entity_id }}"
+    acs_url:    "{{ nessus_base_url }}{{ nessus_saml_acs_path }}"
+    admin_url:  "{{ nessus_base_url }}"
+    base_url:   "{{ nessus_base_url }}"
+    redirect_uris:
+      - "{{ nessus_base_url }}{{ nessus_saml_acs_path }}"
+    nameid_format:           email
+    nameid_user_attribute:   email
+    sign_documents:          "false"
+    sign_assertions:         "true"
+    force_post_binding:      "true"
+    include_authnstatement:  "true"
+    signature_algorithm:     RSA_SHA256
+    signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
+    signature_key_name:      NONE
+    front_channel_logout:    true
+    group_mapper_enabled:    false
+    attributes:
+      - { property: username, saml_name: username, friendly_name: username }
+      - { property: email,    saml_name: email,    friendly_name: email    }
+
+  - name:       artifactory-saml
+    client_id:  "{{ artifactory_base_url }}"
+    acs_url:    "{{ artifactory_saml_login_response_url }}"
+    admin_url:  "{{ artifactory_base_url }}"
+    root_url:   "{{ artifactory_saml_login_response_url }}"
+    base_url:   "{{ artifactory_saml_login_response_url }}"
+    redirect_uris:
+      - "{{ artifactory_base_url }}/*"
+      - "{{ artifactory_saml_login_response_url }}"
+    nameid_format:           username
+    nameid_user_attribute:   username
+    sign_documents:          "false"
+    sign_assertions:         "true"
+    force_post_binding:      "false"
+    artifact_binding:        "false"
+    include_authnstatement:  "true"
+    signature_algorithm:     RSA_SHA256
+    signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
+    signature_key_name:      NONE
+    front_channel_logout:    false
+    attributes:
+      - { property: email,     saml_name: email,    friendly_name: email    }
+      - { property: username,  saml_name: username, friendly_name: username }
+      - { property: firstName, saml_name: name,     friendly_name: name     }
+
+  - name:       wazuh-saml
+    client_id:  wazuh-saml
+    acs_url:    "{{ wazuh_base_url }}{{ wazuh_saml_acs_path }}"
+    admin_url:  "{{ wazuh_base_url }}"
+    base_url:   "{{ wazuh_base_url }}"
+    root_url:   "{{ wazuh_base_url }}"
+    redirect_uris:
+      - "{{ wazuh_base_url }}/*"
+    nameid_format:           username
+    nameid_user_attribute:   username
+    sign_documents:          "false"
+    sign_assertions:         "true"
+    force_post_binding:      "true"
+    include_authnstatement:  "true"
+    signature_algorithm:     RSA_SHA256
+    signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
+    signature_key_name:      NONE
+    front_channel_logout:    false
+    idp_initiated_sso_url_name: wazuh-dashboard
+    group_mapper_name:       groups
+    group_attribute_name:    groups
+    group_friendly_name:     groups
+    role_mapper_enabled:     true
+    role_mapper_name:        wazuhRoleKey
+    role_attribute_name:     Roles
+    attributes:
+      - { property: username,  saml_name: username, friendly_name: username }
+      - { property: email,     saml_name: email,    friendly_name: email    }
+      - { property: firstName, saml_name: name,     friendly_name: name     }
+
+# ───────────────────────────────────────────────────────────────────────────
+# Atlassian settings (shared across Jira, Confluence, Bitbucket)
+# Admin credentials used by the atlassian_saml_config role to call REST APIs.
+# ───────────────────────────────────────────────────────────────────────────
+atlassian_admin_user:     "{{ vault_atlassian_admin_user }}"
+atlassian_admin_password: "{{ vault_atlassian_admin_password }}"
+
+# ───────────────────────────────────────────────────────────────────────────
+# Nessus / Tenable.sc settings
+# Admin credentials are used by the nessus_saml_config role to call the
+# Security Center REST API.
+# ───────────────────────────────────────────────────────────────────────────
+nessus_tsc_admin_user:     "{{ vault_tsc_admin_username }}"
+nessus_tsc_admin_password: "{{ vault_tsc_admin_password }}"
+# ───────────────────────────────────────────────────────────────────────────
+# Artifactory settings
+# API token is used by the artifactory_saml_config role to call the Access
+# SAML API.  The SAML setting name maps to /access/api/v1/saml/{name}.
+# ───────────────────────────────────────────────────────────────────────────
+artifactory_api_token:      "{{ vault_artifactory_API_token }}"
+artifactory_service_name:   artifactory
+artifactory_port:           8082
+artifactory_saml_name: "artifactory"
+artifactory_saml_service_provider_name: "{{ artifactory_base_url }}"
+artifactory_saml_login_url: "{{ keycloak_saml_login_url }}"
+artifactory_saml_logout_url: "{{ keycloak_saml_login_url }}"
+artifactory_saml_nameid_attr: "username"
+artifactory_saml_email_attr:  "email"
+artifactory_saml_group_attr:  "groups"
+artifactory_saml_auto_user_creation: true
+artifactory_saml_allow_user_to_access_profile: true
+artifactory_saml_auto_redirect: false
+artifactory_saml_sync_groups: true
+artifactory_saml_verify_audience_restriction: true
+artifactory_saml_use_encrypted_assertion: false
 
 # ───────────────────────────────────────────────────────────────────────────
 # SonarQube settings
@@ -157,3 +368,14 @@ sonarqube_saml_user_name_attr:    "username"
 sonarqube_saml_user_email_attr:   "email"
 sonarqube_saml_group_attr:        "groups"
 sonarqube_saml_allow_signup:      "true"
+
+# ───────────────────────────────────────────────────────────────────────────
+# Wazuh / OpenSearch Dashboards settings
+# SAML is configured via the Wazuh indexer security plugin (config.yml) and
+# the dashboard config (opensearch_dashboards.yml).
+# ───────────────────────────────────────────────────────────────────────────
+wazuh_saml_sp_entity_id:    wazuh-saml
+wazuh_saml_subject_key:     username
+wazuh_saml_roles_key:       Roles
+wazuh_saml_exchange_key:    "{{ vault_wazuh_saml_exchange_key }}"
+wazuh_saml_authc_order:     5
