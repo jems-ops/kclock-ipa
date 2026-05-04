@@ -1,6 +1,3 @@
 ---
-- name: restart keycloak
-  ansible.builtin.systemd:
-    name: keycloak
-    state: restarted
-    daemon_reload: true
+# No handlers required — SAML client and mapper changes via kcadm take
+# effect immediately without a Keycloak restart.
