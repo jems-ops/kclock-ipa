@@ -1,4 +1,4 @@
-.PHONY: help deploy prep keycloak validate jenkins sonar artifactory nessus wazuh logs clean
+.PHONY: help deploy prep keycloak validate jenkins sonar artifactory nessus wazuh atlassian-rollback logs clean
 
 help:
 	@echo "SSO CLI Makefile"
@@ -12,6 +12,7 @@ help:
 	@echo "make artifactory - Onboard Artifactory"
 	@echo "make nessus      - Onboard Nessus"
 	@echo "make wazuh       - Onboard Wazuh"
+	@echo "make atlassian-rollback - Rollback Atlassian SAML"
 	@echo "make logs        - Tail CLI logs"
 	@echo "make clean       - Cleanup temp/logs"
 
@@ -41,6 +42,9 @@ nessus:
 
 wazuh:
 	sso-cli onboard-app wazuh
+
+atlassian-rollback:
+	sso-cli atlassian-rollback
 
 validate-local:
 	sso-cli validate-local

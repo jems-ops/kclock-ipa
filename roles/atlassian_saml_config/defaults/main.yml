@@ -19,3 +19,6 @@ atlassian_saml_api_paths:
 # SAML attribute mappings that the Atlassian side reads from the assertion.
 # These must match the Keycloak SAML client mappers defined in group_vars.
 atlassian_saml_username_attr: "NameID"
+
+# Backup directory on the Ansible controller for SAML config snapshots.
+atlassian_saml_backup_dir: "{{ playbook_dir }}/../backups/atlassian-saml"

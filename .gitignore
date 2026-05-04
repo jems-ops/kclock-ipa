@@ -53,6 +53,7 @@ id_ed25519*
 *.backup
 *.bak
 *.orig
+backups/
 local_settings.yml
 local_vars.yml
 

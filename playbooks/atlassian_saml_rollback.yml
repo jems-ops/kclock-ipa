@@ -1,0 +1,49 @@
+---
+# Rollback Atlassian SAML configuration to the last backup.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/atlassian_saml_rollback.yml
+#   ansible-playbook -i inventory playbooks/atlassian_saml_rollback.yml -e atlassian_rollback_products=jira
+#   ansible-playbook -i inventory playbooks/atlassian_saml_rollback.yml -e atlassian_saml_restore_file=/path/to/backup.json
+#
+# By default all three products are rolled back.  Pass a comma-separated
+# list to atlassian_rollback_products to limit to specific products.
+
+- name: Rollback Jira SAML settings
+  hosts: jira
+  become: false
+  gather_facts: false
+  tasks:
+    - include_tasks: ../roles/atlassian_saml_config/tasks/validate_inputs.yml
+      vars:
+        atlassian_product: jira
+    - include_tasks: ../roles/atlassian_saml_config/tasks/rollback.yml
+      vars:
+        atlassian_product: jira
+  when: "'jira' in (atlassian_rollback_products | default('jira,confluence,bitbucket')).split(',')"
+
+- name: Rollback Confluence SAML settings
+  hosts: confluence
+  become: false
+  gather_facts: false
+  tasks:
+    - include_tasks: ../roles/atlassian_saml_config/tasks/validate_inputs.yml
+      vars:
+        atlassian_product: confluence
+    - include_tasks: ../roles/atlassian_saml_config/tasks/rollback.yml
+      vars:
+        atlassian_product: confluence
+  when: "'confluence' in (atlassian_rollback_products | default('jira,confluence,bitbucket')).split(',')"
+
+- name: Rollback Bitbucket SAML settings
+  hosts: bitbucket
+  become: false
+  gather_facts: false
+  tasks:
+    - include_tasks: ../roles/atlassian_saml_config/tasks/validate_inputs.yml
+      vars:
+        atlassian_product: bitbucket
+    - include_tasks: ../roles/atlassian_saml_config/tasks/rollback.yml
+      vars:
+        atlassian_product: bitbucket
+  when: "'bitbucket' in (atlassian_rollback_products | default('jira,confluence,bitbucket')).split(',')"

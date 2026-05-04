@@ -1,0 +1,61 @@
+---
+# Restore a previous SAML configuration to the Atlassian product.
+#
+# Usage:
+#   -e atlassian_saml_restore_file=path/to/backup.json
+#
+# If atlassian_saml_restore_file is not provided, the "latest" symlink is used.
+
+- name: Resolve restore file path
+  ansible.builtin.set_fact:
+    _restore_file: "{{ atlassian_saml_restore_file | default(atlassian_saml_backup_dir + '/' + atlassian_product + '-saml-latest.json') }}"
+
+- name: Verify restore file exists
+  ansible.builtin.stat:
+    path: "{{ _restore_file }}"
+  register: restore_file_stat
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+
+- name: Fail if restore file is missing
+  ansible.builtin.fail:
+    msg: >-
+      Restore file not found: {{ _restore_file }}.
+      Run the backup task first, or pass -e atlassian_saml_restore_file=<path>.
+  when: not restore_file_stat.stat.exists
+
+- name: Load SAML backup payload
+  ansible.builtin.set_fact:
+    _restore_payload: "{{ lookup('file', _restore_file) | from_json }}"
+
+- name: Show what will be restored
+  ansible.builtin.debug:
+    msg:
+      - "Restoring {{ atlassian_product | capitalize }} SAML config from: {{ _restore_file }}"
+      - "IdP issuer in backup: {{ _restore_payload.ssoIssuer | default('(not set)') }}"
+
+- name: Push restored SAML configuration to {{ atlassian_product | capitalize }}
+  ansible.builtin.uri:
+    url: "{{ atlassian_saml_api_url }}"
+    method: PUT
+    user: "{{ atlassian_admin_user }}"
+    password: "{{ atlassian_admin_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ atlassian_validate_certs }}"
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body: "{{ _restore_payload }}"
+    status_code: [200, 204]
+  register: restore_result
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+
+- name: Confirm rollback applied
+  ansible.builtin.debug:
+    msg: "{{ atlassian_product | capitalize }} SAML configuration rolled back (HTTP {{ restore_result.status }})"

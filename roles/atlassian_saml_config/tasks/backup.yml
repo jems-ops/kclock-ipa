@@ -1,0 +1,62 @@
+---
+# Snapshot the current SAML configuration from the Atlassian product REST API
+# and save it as a timestamped JSON file on the Ansible controller.
+#
+# Backup location: {{ atlassian_saml_backup_dir }}/{{ atlassian_product }}-saml-<timestamp>.json
+# A symlink "latest" always points to the most recent backup.
+
+- name: Ensure backup directory exists
+  ansible.builtin.file:
+    path: "{{ atlassian_saml_backup_dir }}"
+    state: directory
+    mode: "0750"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+
+- name: Generate backup timestamp
+  ansible.builtin.set_fact:
+    _backup_ts: "{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}"
+
+- name: Read current SAML configuration from {{ atlassian_product | capitalize }}
+  ansible.builtin.uri:
+    url: "{{ atlassian_saml_api_url }}"
+    method: GET
+    user: "{{ atlassian_admin_user }}"
+    password: "{{ atlassian_admin_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ atlassian_validate_certs }}"
+    headers:
+      Accept: "application/json"
+    status_code: [200]
+  register: saml_backup_result
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+
+- name: Save SAML backup to controller
+  ansible.builtin.copy:
+    content: "{{ saml_backup_result.json | to_nice_json }}"
+    dest: "{{ atlassian_saml_backup_dir }}/{{ atlassian_product }}-saml-{{ _backup_ts }}.json"
+    mode: "0640"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+
+- name: Update latest symlink
+  ansible.builtin.file:
+    src: "{{ atlassian_product }}-saml-{{ _backup_ts }}.json"
+    dest: "{{ atlassian_saml_backup_dir }}/{{ atlassian_product }}-saml-latest.json"
+    state: link
+    force: true
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+
+- name: Confirm backup saved
+  ansible.builtin.debug:
+    msg: "Backup saved → {{ atlassian_saml_backup_dir }}/{{ atlassian_product }}-saml-{{ _backup_ts }}.json"

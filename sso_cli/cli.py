@@ -153,6 +153,19 @@ def onboard_app(app, env):
 
 
 # -------------------------
+# ATLASSIAN ROLLBACK
+# -------------------------
+@cli.command(name="atlassian-rollback")
+@click.option("--env", default="lab")
+@click.option("--products", default="jira,confluence,bitbucket",
+              help="Comma-separated list of products to rollback")
+def atlassian_rollback(env, products):
+    """Rollback Atlassian SAML configuration to last backup"""
+    run_playbook("atlassian_saml_rollback.yml", env,
+                 extra_vars=f"atlassian_rollback_products={products}")
+
+
+# -------------------------
 # DEBUG
 # -------------------------
 @cli.command()
