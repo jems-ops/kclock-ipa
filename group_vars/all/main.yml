@@ -185,13 +185,13 @@ keycloak_saml_clients:
     group_mapper_name:       group
     group_attribute_name:    member
     group_friendly_name:     ""
-    group_single_attribute:  "true"
-    group_full_path:         "true"
+    group_single_attribute:  "false"
+    group_full_path:         "false"
     attributes:
-      - { mapper_name: "X500 email",     property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,     nameformat: URI }
-      - { mapper_name: "X500 givenName", property: firstName, saml_name: "urn:oid:2.5.4.42",             friendly_name: givenName, nameformat: URI }
-      - { mapper_name: "X500 surname",   property: lastName,  saml_name: "urn:oid:2.5.4.4",              friendly_name: surname,   nameformat: URI }
-      - { mapper_name: "Name", property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
+      - { mapper_name: email,     property: email,     saml_name: email,     friendly_name: email,     nameformat: Basic }
+      - { mapper_name: givenName, property: firstName, saml_name: givenName, friendly_name: givenName, nameformat: Basic }
+      - { mapper_name: surname,   property: lastName,  saml_name: surname,   friendly_name: surname,   nameformat: Basic }
+      - { mapper_name: Name, property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
 
   - name:       confluence-saml
     client_id:  "{{ confluence_base_url }}"
@@ -214,13 +214,13 @@ keycloak_saml_clients:
     group_mapper_name:       group
     group_attribute_name:    member
     group_friendly_name:     ""
-    group_single_attribute:  "true"
-    group_full_path:         "true"
+    group_single_attribute:  "false"
+    group_full_path:         "false"
     attributes:
-      - { mapper_name: "X500 email",     property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,     nameformat: URI }
-      - { mapper_name: "X500 givenName", property: firstName, saml_name: "urn:oid:2.5.4.42",             friendly_name: givenName, nameformat: URI }
-      - { mapper_name: "X500 surname",   property: lastName,  saml_name: "urn:oid:2.5.4.4",              friendly_name: surname,   nameformat: URI }
-      - { mapper_name: "Name", property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
+      - { mapper_name: email,     property: email,     saml_name: email,     friendly_name: email,     nameformat: Basic }
+      - { mapper_name: givenName, property: firstName, saml_name: givenName, friendly_name: givenName, nameformat: Basic }
+      - { mapper_name: surname,   property: lastName,  saml_name: surname,   friendly_name: surname,   nameformat: Basic }
+      - { mapper_name: Name, property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
 
   - name:       bitbucket-saml
     client_id:  "{{ bitbucket_base_url }}"
@@ -243,13 +243,13 @@ keycloak_saml_clients:
     group_mapper_name:       group
     group_attribute_name:    member
     group_friendly_name:     ""
-    group_single_attribute:  "true"
-    group_full_path:         "true"
+    group_single_attribute:  "false"
+    group_full_path:         "false"
     attributes:
-      - { mapper_name: "X500 email",     property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,     nameformat: URI }
-      - { mapper_name: "X500 givenName", property: firstName, saml_name: "urn:oid:2.5.4.42",             friendly_name: givenName, nameformat: URI }
-      - { mapper_name: "X500 surname",   property: lastName,  saml_name: "urn:oid:2.5.4.4",              friendly_name: surname,   nameformat: URI }
-      - { mapper_name: "Name", property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
+      - { mapper_name: email,     property: email,     saml_name: email,     friendly_name: email,     nameformat: Basic }
+      - { mapper_name: givenName, property: firstName, saml_name: givenName, friendly_name: givenName, nameformat: Basic }
+      - { mapper_name: surname,   property: lastName,  saml_name: surname,   friendly_name: surname,   nameformat: Basic }
+      - { mapper_name: Name, property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
 
   - name:       nessus-saml
     client_id:  "{{ nessus_saml_entity_id }}"
