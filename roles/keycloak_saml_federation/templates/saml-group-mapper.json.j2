@@ -6,7 +6,7 @@
     "attribute.name":       "{{ item.group_attribute_name | default('groups') }}",
     "attribute.nameformat": "Basic",
     "friendly.name":        "{{ item.group_friendly_name | default(item.group_attribute_name | default('groups')) }}",
-    "single":               "true",
-    "full.path":            "false"
+    "single":               "{{ item.group_single_attribute | default('true') }}",
+    "full.path":            "{{ item.group_full_path | default('false') }}"
   }
 }

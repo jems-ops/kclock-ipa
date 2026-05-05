@@ -1,7 +1,7 @@
 {
-  "name": "{{ item.1.saml_name }}",
+  "name": "{{ item.1.mapper_name | default(item.1.saml_name) }}",
   "protocol": "saml",
-  "protocolMapper": "saml-user-property-mapper",
+  "protocolMapper": "{{ item.1.protocol_mapper | default('saml-user-property-mapper') }}",
   "config": {
     "attribute.name":       "{{ item.1.saml_name }}",
     "friendly.name":        "{{ item.1.friendly_name }}",

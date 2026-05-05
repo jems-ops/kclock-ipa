@@ -171,7 +171,7 @@ keycloak_saml_clients:
     base_url:   "{{ jira_base_url }}"
     redirect_uris:
       - "{{ jira_base_url }}/*"
-    nameid_format:           username
+    nameid_format:           unspecified
     nameid_user_attribute:   username
     sign_documents:          "true"
     sign_assertions:         "true"
@@ -181,14 +181,17 @@ keycloak_saml_clients:
     signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
     signature_key_name:      NONE
     front_channel_logout:    true
+    clean_mappers:           true
     group_mapper_name:       group
-    group_attribute_name:    group
-    group_friendly_name:     group
+    group_attribute_name:    member
+    group_friendly_name:     ""
+    group_single_attribute:  "true"
+    group_full_path:         "true"
     attributes:
-      - { property: username,  saml_name: Name,                           friendly_name: Name,      nameformat: Basic }
-      - { property: firstName, saml_name: "urn:oid:2.5.4.42",            friendly_name: givenName, nameformat: URI   }
-      - { property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,    nameformat: URI   }
-      - { property: lastName,  saml_name: "urn:oid:2.5.4.4",             friendly_name: surname,   nameformat: URI   }
+      - { mapper_name: "X500 email",     property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,     nameformat: URI }
+      - { mapper_name: "X500 givenName", property: firstName, saml_name: "urn:oid:2.5.4.42",             friendly_name: givenName, nameformat: URI }
+      - { mapper_name: "X500 surname",   property: lastName,  saml_name: "urn:oid:2.5.4.4",              friendly_name: surname,   nameformat: URI }
+      - { mapper_name: "Name", property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
 
   - name:       confluence-saml
     client_id:  "{{ confluence_base_url }}"
@@ -197,7 +200,7 @@ keycloak_saml_clients:
     base_url:   "{{ confluence_base_url }}"
     redirect_uris:
       - "{{ confluence_base_url }}/*"
-    nameid_format:           username
+    nameid_format:           unspecified
     nameid_user_attribute:   username
     sign_documents:          "true"
     sign_assertions:         "true"
@@ -207,14 +210,17 @@ keycloak_saml_clients:
     signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
     signature_key_name:      NONE
     front_channel_logout:    true
+    clean_mappers:           true
     group_mapper_name:       group
-    group_attribute_name:    group
-    group_friendly_name:     group
+    group_attribute_name:    member
+    group_friendly_name:     ""
+    group_single_attribute:  "true"
+    group_full_path:         "true"
     attributes:
-      - { property: username,  saml_name: Name,                           friendly_name: Name,      nameformat: Basic }
-      - { property: firstName, saml_name: "urn:oid:2.5.4.42",            friendly_name: givenName, nameformat: URI   }
-      - { property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,    nameformat: URI   }
-      - { property: lastName,  saml_name: "urn:oid:2.5.4.4",             friendly_name: surname,   nameformat: URI   }
+      - { mapper_name: "X500 email",     property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,     nameformat: URI }
+      - { mapper_name: "X500 givenName", property: firstName, saml_name: "urn:oid:2.5.4.42",             friendly_name: givenName, nameformat: URI }
+      - { mapper_name: "X500 surname",   property: lastName,  saml_name: "urn:oid:2.5.4.4",              friendly_name: surname,   nameformat: URI }
+      - { mapper_name: "Name", property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
 
   - name:       bitbucket-saml
     client_id:  "{{ bitbucket_base_url }}"
@@ -223,7 +229,7 @@ keycloak_saml_clients:
     base_url:   "{{ bitbucket_base_url }}"
     redirect_uris:
       - "{{ bitbucket_base_url }}/*"
-    nameid_format:           username
+    nameid_format:           unspecified
     nameid_user_attribute:   username
     sign_documents:          "true"
     sign_assertions:         "true"
@@ -233,14 +239,17 @@ keycloak_saml_clients:
     signature_canonicalization_method: "http://www.w3.org/2001/10/xml-exc-c14n#"
     signature_key_name:      NONE
     front_channel_logout:    true
+    clean_mappers:           true
     group_mapper_name:       group
-    group_attribute_name:    group
-    group_friendly_name:     group
+    group_attribute_name:    member
+    group_friendly_name:     ""
+    group_single_attribute:  "true"
+    group_full_path:         "true"
     attributes:
-      - { property: username,  saml_name: Name,                           friendly_name: Name,      nameformat: Basic }
-      - { property: firstName, saml_name: "urn:oid:2.5.4.42",            friendly_name: givenName, nameformat: URI   }
-      - { property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,    nameformat: URI   }
-      - { property: lastName,  saml_name: "urn:oid:2.5.4.4",             friendly_name: surname,   nameformat: URI   }
+      - { mapper_name: "X500 email",     property: email,     saml_name: "urn:oid:1.2.840.113549.1.9.1", friendly_name: email,     nameformat: URI }
+      - { mapper_name: "X500 givenName", property: firstName, saml_name: "urn:oid:2.5.4.42",             friendly_name: givenName, nameformat: URI }
+      - { mapper_name: "X500 surname",   property: lastName,  saml_name: "urn:oid:2.5.4.4",              friendly_name: surname,   nameformat: URI }
+      - { mapper_name: "Name", property: Name, saml_name: Name, friendly_name: "", nameformat: Basic, protocol_mapper: "saml-user-attribute-mapper" }
 
   - name:       nessus-saml
     client_id:  "{{ nessus_saml_entity_id }}"

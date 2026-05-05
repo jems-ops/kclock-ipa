@@ -43,7 +43,29 @@
     label: "{{ item.name }}"
 
 # ------------------------------------------
-# 4. NameID mapper
+# 4. Delete existing mappers for clean clients
+# ------------------------------------------
+
+- name: Delete existing protocol mappers (clean_mappers clients)
+  ansible.builtin.shell: |
+    mappers=$({{ keycloak_kcadm }} get clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models -r {{ keycloak_realm }} 2>/dev/null)
+    echo "$mappers" | python3 -c "
+    import sys, json
+    for m in json.load(sys.stdin):
+        print(m['id'])
+    " | while read mid; do
+      {{ keycloak_kcadm }} delete clients/{{ saml_client_ids[item.name] }}/protocol-mappers/models/$mid -r {{ keycloak_realm }}
+    done
+  args:
+    executable: /bin/bash
+  loop: "{{ keycloak_saml_clients }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.clean_mappers | default(false)
+  changed_when: true
+
+# ------------------------------------------
+# 5. NameID mapper
 # ------------------------------------------
 
 - name: Render NameID mapper payloads
@@ -86,11 +108,11 @@
 - name: Render user property mapper payloads
   ansible.builtin.template:
     src: saml-user-property-mapper.json.j2
-    dest: "{{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.saml_name }}.json"
+    dest: "{{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.mapper_name | default(item.1.saml_name) | regex_replace('[^a-zA-Z0-9_-]', '_') }}.json"
     mode: "0600"
   loop: "{{ keycloak_saml_clients | subelements('attributes') }}"
   loop_control:
-    label: "{{ item.0.name }} -> {{ item.1.saml_name }}"
+    label: "{{ item.0.name }} -> {{ item.1.mapper_name | default(item.1.saml_name) }}"
 
 # Same create-with-no-op pattern as the NameID mapper.
 
@@ -99,7 +121,7 @@
     {{ keycloak_kcadm }} create
     clients/{{ saml_client_ids[item.0.name] }}/protocol-mappers/models
     -r {{ keycloak_realm }}
-    -f {{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.saml_name }}.json
+    -f {{ keycloak_tmp_dir }}/{{ item.0.name }}-{{ item.1.mapper_name | default(item.1.saml_name) | regex_replace('[^a-zA-Z0-9_-]', '_') }}.json
   register: user_mapper_result
   failed_when:
     - user_mapper_result.rc != 0
@@ -109,7 +131,7 @@
     - "'exists' not in user_mapper_result.stderr"
   loop: "{{ keycloak_saml_clients | subelements('attributes') }}"
   loop_control:
-    label: "{{ item.0.name }} -> {{ item.1.saml_name }}"
+    label: "{{ item.0.name }} -> {{ item.1.mapper_name | default(item.1.saml_name) }}"
 
 # ------------------------------------------
 # 6. Group membership mapper
