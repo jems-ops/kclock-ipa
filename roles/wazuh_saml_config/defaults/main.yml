@@ -5,10 +5,14 @@
 wazuh_validate_certs: false
 
 # Filesystem paths on the Wazuh host.
-wazuh_indexer_security_config: /etc/wazuh-indexer/opensearch-security/config.yml
-wazuh_dashboard_config:        /etc/wazuh-dashboard/opensearch_dashboards.yml
-wazuh_indexer_certs_dir:       /etc/wazuh-indexer/certs
-wazuh_securityadmin:           /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh
+wazuh_indexer_security_dir:      /etc/wazuh-indexer/opensearch-security
+wazuh_indexer_security_config:   "{{ wazuh_indexer_security_dir }}/config.yml"
+wazuh_indexer_roles_mapping:     "{{ wazuh_indexer_security_dir }}/roles_mapping.yml"
+wazuh_idp_metadata_path:         "{{ wazuh_indexer_security_dir }}/idp-metadata.xml"
+wazuh_dashboard_config:          /etc/wazuh-dashboard/opensearch_dashboards.yml
+wazuh_api_config_path:           /usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml
+wazuh_indexer_certs_dir:         /etc/wazuh-indexer/certs
+wazuh_securityadmin:             /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh
 
 # Service names for systemd.
 wazuh_indexer_service:   wazuh-indexer

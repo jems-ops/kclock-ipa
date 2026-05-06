@@ -1,122 +1,175 @@
 ---
-# Configure Wazuh / OpenSearch SAML authentication.
-#
-# 1. Deploy IdP signing certificate as PEM
-# 2. Merge SAML auth domain into indexer security config.yml
-# 3. Apply security config with securityadmin.sh
-# 4. Configure OpenSearch Dashboards for SAML
-# 5. Restart wazuh-dashboard
+- name: Display Wazuh SAML integration summary
+  ansible.builtin.debug:
+    msg: >-
+      Configuring Wazuh SAML with IdP entity
+      {{ keycloak_realm_base_url }}, SP entity {{ wazuh_saml_sp_entity_id }},
+      dashboard at {{ wazuh_base_url }}.
 
-# ──────────────────────────────────────────────────────────────────────────
-# 1. Deploy IdP certificate
-# ──────────────────────────────────────────────────────────────────────────
-
-- name: Deploy Keycloak IdP signing certificate
-  ansible.builtin.copy:
-    content: |
-      -----BEGIN CERTIFICATE-----
-      {{ keycloak_signing_cert }}
-      -----END CERTIFICATE-----
-    dest: "{{ wazuh_indexer_certs_dir }}/idp-signing.pem"
+# ── IdP metadata ──────────────────────────────────────────────────────────
+- name: Ensure Wazuh indexer security directory exists
+  ansible.builtin.file:
+    path: "{{ wazuh_indexer_security_dir }}"
+    state: directory
     owner: wazuh-indexer
     group: wazuh-indexer
-    mode: "0640"
-  become: true
+    mode: '0750'
 
-# ──────────────────────────────────────────────────────────────────────────
-# 2. Merge SAML auth domain into security config.yml
-# ──────────────────────────────────────────────────────────────────────────
+- name: Check if idp-metadata.xml already exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_idp_metadata_path }}"
+  register: wazuh_idp_metadata
 
-- name: Read existing Wazuh indexer security config
-  ansible.builtin.slurp:
+- name: Write idp-metadata.xml from Keycloak SAML descriptor
+  ansible.builtin.copy:
+    dest: "{{ wazuh_idp_metadata_path }}"
+    content: "{{ keycloak_saml_metadata.content }}"
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: '0644'
+  when:
+    - keycloak_saml_metadata is defined
+    - keycloak_saml_metadata.content is defined
+    - not (wazuh_idp_metadata.stat.exists | default(false))
+  notify:
+    - Restart wazuh-indexer
+    - Restart wazuh-dashboard
+
+# ── Indexer config.yml – SAML authc block ─────────────────────────────────
+- name: Check Wazuh indexer config.yml exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_indexer_security_config }}"
+  register: wazuh_indexer_config_stat
+
+- name: Backup Wazuh indexer config.yml before SAML changes
+  ansible.builtin.copy:
     src: "{{ wazuh_indexer_security_config }}"
-  register: existing_security_config
-  become: true
+    dest: "{{ wazuh_indexer_security_config }}.bak"
+    remote_src: true
+    mode: '0640'
+  when: wazuh_indexer_config_stat.stat.exists | default(false)
 
-- name: Merge SAML auth domain into security config
-  ansible.builtin.set_fact:
-    merged_security_config: >-
-      {{
-        (existing_security_config.content | b64decode | from_yaml)
-        | combine(saml_config_overlay, recursive=true)
-      }}
-  vars:
-    saml_config_overlay:
-      config:
-        dynamic:
-          authc:
-            saml_auth_domain:
-              http_enabled: true
-              transport_enabled: false
-              order: "{{ wazuh_saml_authc_order }}"
-              http_authenticator:
-                type: saml
-                challenge: true
-                config:
-                  idp:
-                    metadata_url: "{{ keycloak_saml_metadata_url }}"
-                    entity_id: "{{ keycloak_realm_base_url }}"
-                  sp:
-                    entity_id: "{{ wazuh_saml_sp_entity_id }}"
-                  kibana_url: "{{ wazuh_base_url }}"
-                  subject_key: "{{ wazuh_saml_subject_key }}"
-                  roles_key: "{{ wazuh_saml_roles_key }}"
-                  exchange_key: "{{ wazuh_saml_exchange_key }}"
-              authentication_backend:
-                type: noop
+- name: Inject SAML authc block into indexer config.yml (idempotent)
+  ansible.builtin.blockinfile:
+    path: "{{ wazuh_indexer_security_config }}"
+    marker: "# {mark} ANSIBLE WAZUH SAML"
+    insertafter: "^authc:"
+    block: |
+      saml_auth_domain:
+        http_enabled: true
+        transport_enabled: false
+        order: {{ wazuh_saml_authc_order }}
+        http_authenticator:
+          type: saml
+          challenge: true
+          config:
+            idp:
+              metadata_file: '{{ wazuh_idp_metadata_path }}'
+              entity_id: '{{ keycloak_realm_base_url }}'
+            sp:
+              entity_id: '{{ wazuh_saml_sp_entity_id }}'
+            kibana_url: '{{ wazuh_base_url }}'
+            subject_key: '{{ wazuh_saml_subject_key }}'
+            roles_key: '{{ wazuh_saml_roles_key }}'
+            exchange_key: '{{ wazuh_saml_exchange_key }}'
+        authentication_backend:
+          type: noop
+  when: wazuh_indexer_config_stat.stat.exists | default(false)
+  notify:
+    - Restart wazuh-indexer
 
-- name: Write merged security config
+# ── Indexer roles_mapping.yml ─────────────────────────────────────────────
+- name: Check Wazuh indexer roles_mapping.yml exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_indexer_roles_mapping }}"
+  register: wazuh_roles_mapping_stat
+
+- name: Backup Wazuh indexer roles_mapping.yml before SAML changes
   ansible.builtin.copy:
-    content: "{{ merged_security_config | to_nice_yaml(indent=2) }}"
-    dest: "{{ wazuh_indexer_security_config }}"
-    backup: true
-    owner: wazuh-indexer
-    group: wazuh-indexer
-    mode: "0640"
-  become: true
-  register: security_config_changed
+    src: "{{ wazuh_indexer_roles_mapping }}"
+    dest: "{{ wazuh_indexer_roles_mapping }}.bak"
+    remote_src: true
+    mode: '0640'
+  when: wazuh_roles_mapping_stat.stat.exists | default(false)
 
-# ──────────────────────────────────────────────────────────────────────────
-# 3. Apply security config with securityadmin.sh
-# ──────────────────────────────────────────────────────────────────────────
+- name: Ensure all_access backend role mapping for admin exists
+  ansible.builtin.blockinfile:
+    path: "{{ wazuh_indexer_roles_mapping }}"
+    marker: "# {mark} ANSIBLE WAZUH SAML"
+    block: |
+      all_access:
+        reserved: false
+        hidden: false
+        backend_roles:
+          - "admin"
+  when: wazuh_roles_mapping_stat.stat.exists | default(false)
+  notify:
+    - Restart wazuh-indexer
 
-- name: Apply security config via securityadmin
-  ansible.builtin.command: >
-    {{ wazuh_securityadmin }}
-    -cd /etc/wazuh-indexer/opensearch-security/
-    -nhnv
-    -cacert {{ wazuh_indexer_certs_dir }}/root-ca.pem
-    -cert {{ wazuh_indexer_certs_dir }}/admin.pem
-    -key {{ wazuh_indexer_certs_dir }}/admin-key.pem
-    -h 127.0.0.1
-  become: true
-  when: security_config_changed.changed
-
-# ──────────────────────────────────────────────────────────────────────────
-# 4. Configure OpenSearch Dashboards for SAML
-# ──────────────────────────────────────────────────────────────────────────
-
-- name: Set SAML auth type in dashboard config
-  ansible.builtin.lineinfile:
+# ── Dashboard opensearch_dashboards.yml ───────────────────────────────────
+- name: Check Wazuh dashboard config file exists
+  ansible.builtin.stat:
     path: "{{ wazuh_dashboard_config }}"
-    regexp: '^opensearch_security\.auth\.type:'
-    line: 'opensearch_security.auth.type: "saml"'
-    backup: true
-  become: true
-  notify: Restart wazuh-dashboard
+  register: wazuh_dashboard_config_stat
 
-- name: Set SAML XSRF allowlist in dashboard config
-  ansible.builtin.lineinfile:
-    path: "{{ wazuh_dashboard_config }}"
-    regexp: '^server\.xsrf\.allowlist:'
-    line: 'server.xsrf.allowlist: ["/_opendistro/_security/saml/acs", "/_opendistro/_security/saml/logout", "/_opendistro/_security/saml/acs/idpinitiated"]'
-  become: true
-  notify: Restart wazuh-dashboard
+- name: Backup Wazuh dashboard opensearch_dashboards.yml before SAML changes
+  ansible.builtin.copy:
+    src: "{{ wazuh_dashboard_config }}"
+    dest: "{{ wazuh_dashboard_config }}.bak"
+    remote_src: true
+    mode: '0640'
+  when: wazuh_dashboard_config_stat.stat.exists | default(false)
 
-- name: Disable session keepalive in dashboard config
-  ansible.builtin.lineinfile:
+- name: Check if SAML auth already configured in opensearch_dashboards.yml
+  ansible.builtin.shell: >-
+    grep -q 'opensearch_security.auth.type' {{ wazuh_dashboard_config }}
+    && echo present || echo absent
+  register: wazuh_dashboard_saml_check
+  changed_when: false
+  when: wazuh_dashboard_config_stat.stat.exists | default(false)
+
+- name: Enable SAML auth type in opensearch_dashboards.yml
+  ansible.builtin.blockinfile:
     path: "{{ wazuh_dashboard_config }}"
-    regexp: '^opensearch_security\.session\.keepalive:'
-    line: 'opensearch_security.session.keepalive: false'
-  become: true
-  notify: Restart wazuh-dashboard
+    marker: "# {mark} ANSIBLE WAZUH SAML"
+    block: |
+      opensearch_security.auth.type: "saml"
+      server.xsrf.allowlist: ["/_opendistro/_security/saml/acs", "/_opendistro/_security/saml/logout", "/_opendistro/_security/saml/acs/idpinitiated"]
+      opensearch_security.session.keepalive: false
+  when:
+    - wazuh_dashboard_config_stat.stat.exists | default(false)
+    - (wazuh_dashboard_saml_check.stdout | default('absent')) != 'present'
+  notify:
+    - Restart wazuh-dashboard
+
+# ── Wazuh API wazuh.yml – disable run_as ──────────────────────────────────
+- name: Check Wazuh API config file exists
+  ansible.builtin.stat:
+    path: "{{ wazuh_api_config_path }}"
+  register: wazuh_api_config_stat
+
+- name: Backup Wazuh API config wazuh.yml before SAML changes
+  ansible.builtin.copy:
+    src: "{{ wazuh_api_config_path }}"
+    dest: "{{ wazuh_api_config_path }}.bak"
+    remote_src: true
+    mode: '0640'
+  when: wazuh_api_config_stat.stat.exists | default(false)
+
+- name: Ensure run_as is false in Wazuh API config
+  ansible.builtin.lineinfile:
+    path: "{{ wazuh_api_config_path }}"
+    regexp: '^\s*run_as:'
+    line: 'run_as: false'
+    backrefs: false
+  when: wazuh_api_config_stat.stat.exists | default(false)
+  notify:
+    - Restart wazuh-dashboard
+
+# ── Final summary ─────────────────────────────────────────────────────────
+- name: Final Wazuh SAML reminder
+  ansible.builtin.debug:
+    msg:
+      - "Keycloak side for app=wazuh is now configured by the generic role."
+      - "Basic Wazuh indexer/dashboard SAML wiring has been applied (config.yml, roles_mapping.yml, opensearch_dashboards.yml, wazuh.yml)."
+      - "Review docs/WAZUH_KEYCLOAK_SAML_MANUAL_SETUP.md for fine-tuning (exchange_key, realms, advanced options)."

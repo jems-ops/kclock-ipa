@@ -1,4 +1,10 @@
 ---
+- name: Restart wazuh-indexer
+  ansible.builtin.systemd:
+    name: "{{ wazuh_indexer_service }}"
+    state: restarted
+  become: true
+
 - name: Restart wazuh-dashboard
   ansible.builtin.systemd:
     name: "{{ wazuh_dashboard_service }}"
