@@ -1,0 +1,30 @@
+---
+- name: Verify OIDC block is present in grafana.ini
+  ansible.builtin.command: >
+    grep -c 'auth.generic_oauth' {{ grafana_config_path }}
+  register: grafana_oidc_verify
+  changed_when: false
+  failed_when: grafana_oidc_verify.rc != 0
+
+- name: Verify Grafana is reachable
+  ansible.builtin.uri:
+    url: "{{ grafana_base_url }}/api/health"
+    validate_certs: "{{ grafana_validate_certs }}"
+    status_code: 200
+  retries: 5
+  delay: 5
+  register: grafana_health
+  until: grafana_health.status == 200
+
+- name: Display completion message
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Grafana OIDC configured via Keycloak"
+      - ""
+      - "To test SSO:"
+      - "  1. Open {{ grafana_base_url }} in a browser"
+      - "  2. Click 'Sign in with {{ grafana_oauth_button_name }}'"
+      - "  3. Authenticate with a FreeIPA user via Keycloak"
+      - "  4. FreeIPA group '{{ grafana_admin_group }}' → Grafana Admin role"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

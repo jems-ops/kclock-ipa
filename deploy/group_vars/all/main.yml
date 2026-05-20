@@ -1,0 +1,55 @@
+---
+# Group variables for all hosts
+# References encrypted vault variables from vault.yml
+
+# Dynamic backend servers configuration for nginx reverse proxy
+# server_name can be either a string or a list of server names
+site_backends:
+  - server_name: "jenkins.local"
+    ip: "192.168.56.13"
+    port: "8080"
+  - server_name: "sonar.local"
+    ip: "192.168.56.16"
+    port: "9000"
+  - server_name: "grafana.local"
+    ip: "192.168.56.18"
+    port: "3000"
+  - server_name: "prometheus.local"
+    ip: "192.168.56.18"
+    port: "9090"
+  - server_name: "nexus.local"
+    ip: "192.168.56.11"
+    port: "8081"
+  - server_name: "keycloak.local"
+    ip: "192.168.56.12"
+    port: "8080"
+  - server_name: "tenable.local"
+    ip: "192.168.56.10"
+    port: "443"
+  - server_name: "wazuh.local"
+    ip: "192.168.56.19"
+    port: "443"
+
+# SSH and authentication (from vault)
+ansible_user: "{{ vault_ansible_user }}"
+ansible_password: "{{ vault_ansible_password }}"
+ansible_become_password: "{{ vault_ansible_become_password }}"
+
+# SSL Certificate configuration (from vault)
+ssl_organization: "{{ vault_ssl_organization }}"
+ssl_email: "{{ vault_ssl_email }}"
+ssl_country: "{{ vault_ssl_country }}"
+ssl_state: "{{ vault_ssl_state }}"
+ssl_city: "{{ vault_ssl_city }}"
+
+# Database configuration (from vault)
+postgresql_db_password: "{{ vault_postgresql_db_password }}"
+sonarqube_db_password: "{{ vault_sonarqube_db_password }}"
+
+# Application configuration (from vault)
+jenkins_admin_password: "{{ vault_jenkins_admin_password }}"
+sonarqube_admin_token: "{{ vault_sonarqube_admin_token }}"
+
+# API tokens (from vault)
+github_api_token: "{{ vault_github_api_token }}"
+docker_registry_password: "{{ vault_docker_registry_password }}"

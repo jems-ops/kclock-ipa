@@ -1,0 +1,30 @@
+---
+# Vault-encrypted variables example
+# Copy this file to vault.yml and encrypt with: ansible-vault encrypt vault.yml
+# Or symlink the parent vault: ln -s ../../../group_vars/all/vault.yml vault.yml
+
+# SSH / sudo credentials
+vault_ansible_user: "admin"
+vault_ansible_password: "changeme"
+vault_ansible_become_password: "changeme"
+
+# SSL certificate details
+vault_ssl_organization: "DevOps Automation"
+vault_ssl_email: "admin@example.com"
+vault_ssl_country: "US"
+vault_ssl_state: "California"
+vault_ssl_city: "San Francisco"
+
+# Database credentials
+vault_postgresql_db_password: "changeme"
+vault_sonarqube_db_password: "changeme"
+
+# Application credentials
+vault_jenkins_admin_password: "changeme"
+vault_sonarqube_admin_token: "changeme"
+vault_keycloak_admin_user: "admin"
+vault_keycloak_admin_password: "changeme"
+
+# API tokens
+vault_github_api_token: "changeme"
+vault_docker_registry_password: "changeme"

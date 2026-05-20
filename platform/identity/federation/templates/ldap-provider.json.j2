@@ -1,0 +1,32 @@
+{
+  "name": "{{ keycloak_ldap_provider_name }}",
+  "providerId": "ldap",
+  "providerType": "org.keycloak.storage.UserStorageProvider",
+  "parentId": "{{ keycloak_saml_integration_realm_uuid }}",
+  "config": {
+    "enabled":               ["true"],
+    "priority":              ["0"],
+    "fullSyncPeriod":        ["86400"],
+    "changedSyncPeriod":     ["3600"],
+    "cachePolicy":           ["DEFAULT"],
+    "batchSizeForSync":      ["1000"],
+    "editMode":              ["READ_ONLY"],
+    "importEnabled":         ["true"],
+    "syncRegistrations":     ["true"],
+    "vendor":                ["other"],
+    "usernameLDAPAttribute": ["{{ keycloak_ldap_username_attr }}"],
+    "rdnLDAPAttribute":      ["{{ keycloak_ldap_rdn_attr }}"],
+    "uuidLDAPAttribute":     ["{{ keycloak_ldap_uuid_attr }}"],
+    "userObjectClasses":     ["{{ keycloak_ldap_user_object_classes | join(',') }}"],
+    "connectionUrl":         ["{{ freeipa_ldap_url }}"],
+    "usersDn":               ["{{ freeipa_users_dn }}"],
+    "authType":              ["simple"],
+    "bindDn":                ["{{ freeipa_bind_dn }}"],
+    "bindCredential":        ["{{ keycloak_ldap_bind_password }}"],
+    "searchScope":           ["2"],
+    "useTruststoreSpi":      ["{{ keycloak_ldap_use_truststore_spi }}"],
+    "validatePasswordPolicy":["false"],
+    "trustEmail":            ["false"],
+    "pagination":            ["true"]
+  }
+}

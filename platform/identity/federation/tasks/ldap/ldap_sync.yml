@@ -1,0 +1,56 @@
+---
+# Trigger a full user sync from FreeIPA. Keycloak returns 200 with a small
+# JSON summary; on transient/no-op runs it can return 204. On 4xx Keycloak
+# returns a JSON body whose `errorMessage` explains the failure (most
+# commonly `GroupsMultipleParents` when nested IPA groups have multiple
+# parents). We capture the body even on non-2xx so the actual reason
+# surfaces in the play recap rather than just an opaque HTTP status.
+
+- name: Trigger full user sync from FreeIPA LDAP
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/user-storage/{{ keycloak_saml_integration_ldap_provider_id }}/sync?action=triggerFullSync"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+    status_code: [200, 204, 400, 403, 404, 500]
+    return_content: true
+    validate_certs: false
+  register: keycloak_saml_integration_ldap_full_sync
+
+- name: Show sync result
+  ansible.builtin.debug:
+    msg: "FreeIPA full sync result: {{ keycloak_saml_integration_ldap_full_sync.json | default(keycloak_saml_integration_ldap_full_sync.content | default(keycloak_saml_integration_ldap_full_sync.status)) }}"
+
+- name: Fail the play if the sync did not return 2xx
+  ansible.builtin.fail:
+    msg: |
+      Keycloak rejected the FreeIPA full-sync request.
+      HTTP status : {{ keycloak_saml_integration_ldap_full_sync.status }}
+      Body        : {{ keycloak_saml_integration_ldap_full_sync.content | default('<empty>') }}
+      Common causes:
+        - GroupsMultipleParents      → set keycloak_ldap_preserve_group_inheritance: "false" (already the default)
+        - LDAP bind failed           → svc.ldap password drift in IPA; run --tags freeipa_prep
+        - LDAP Query failed (TLS)    → IPA CA in Keycloak's JKS truststore is stale; re-run --tags ldap
+  when: keycloak_saml_integration_ldap_full_sync.status not in [200, 204]
+
+# ── Post-sync: verify service users were imported into Keycloak ─────────────
+- name: Verify service user was imported into Keycloak
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/users?username={{ item }}&exact=true"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+    status_code: 200
+    validate_certs: false
+  register: keycloak_user_lookup
+  failed_when:
+    - keycloak_user_lookup.json | length == 0
+  loop:
+    - "{{ freeipa_bind_uid }}"
+    - "{{ freeipa_keycloak_svc_uid }}"
+
+- name: Post-sync validation summary
+  ansible.builtin.debug:
+    msg:
+      - "Service users {{ freeipa_bind_uid }} and {{ freeipa_keycloak_svc_uid }} confirmed present in Keycloak"
+      - "Sync imported {{ keycloak_saml_integration_ldap_full_sync.json.added | default(0) }} users, updated {{ keycloak_saml_integration_ldap_full_sync.json.updated | default(0) }}"

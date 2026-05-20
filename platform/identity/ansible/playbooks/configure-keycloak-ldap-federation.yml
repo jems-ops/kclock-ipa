@@ -1,0 +1,62 @@
+---
+# Configure FreeIPA → Keycloak LDAP user federation.
+#
+# Two plays:
+#   A. freeipa: create the svc.ldap and svc.keycloak service users, ensure canonical app admin
+#      groups exist, export the FreeIPA CA cert.
+#   B. keycloak: import the FreeIPA CA into the Keycloak JKS truststore, wire
+#      the SPI truststore options into keycloak.conf, restart Keycloak, then
+#      create / update the FreeIPA LDAP UserStorageProvider, its mappers, and
+#      trigger a full sync.
+#
+# Tags:
+#   freeipa_prep   → only Play A
+#   ldap           → only Play B
+#   federation     → only Play B
+#
+# Prerequisite vault keys (see VAULT_USAGE.md and group_vars/all/vault.yml.example):
+#   vault_freeipa_admin_password
+#   vault_freeipa_ldap_bind_password     (svc.ldap)
+#   vault_freeipa_keycloak_svc_password  (svc.keycloak)
+#   vault_keycloak_truststore_password
+#   vault_keycloak_admin_user / vault_keycloak_admin_password
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/configure-keycloak-ldap-federation.yml
+#   ansible-playbook -i inventory playbooks/configure-keycloak-ldap-federation.yml --tags freeipa_prep
+#   ansible-playbook -i inventory playbooks/configure-keycloak-ldap-federation.yml --tags ldap
+
+- name: Prepare FreeIPA for Keycloak LDAP federation
+  hosts: freeipa
+  become: true
+  gather_facts: true
+  tags:
+    - freeipa_prep
+    - prep
+  roles:
+    - freeipa_keycloak_prep
+
+- name: Configure Keycloak LDAP federation against FreeIPA
+  hosts: keycloak
+  become: true
+  gather_facts: true
+  tags:
+    - ldap
+    - federation
+  vars:
+    # Federation runs on the Keycloak host itself; hit the local backend on
+    # http://localhost:8080 directly so we don't depend on the public HTTPS
+    # reverse proxy being up. This mirrors the reference's keycloak_kcadm_url.
+    keycloak_admin_api_url: "http://localhost:8080"
+  pre_tasks:
+    # The federation submodule expects the same Keycloak admin URL / realm
+    # vars the rest of the role uses. We only need the realm to be 'master'
+    # — this matches the reference's keycloak-ipa-multi-app branch.
+    - name: Set realm fact for federation run
+      ansible.builtin.set_fact:
+        keycloak_saml_integration_realm_name: "master"
+  tasks:
+    - name: Run LDAP federation submodule of freeipa_keycloak_prep
+      ansible.builtin.import_role:
+        name: freeipa_keycloak_prep
+        tasks_from: ldap_federation

@@ -1,0 +1,90 @@
+---
+# SSO Onboarding Playbook
+# Orchestrates the full SSO setup pipeline for one or more applications.
+#
+# Pipeline:
+#   1. FreeIPA prep  — create service accounts, export CA cert
+#   2. Keycloak      — ensure realm, SAML clients, protocol mappers
+#   3. LDAP federation — FreeIPA → Keycloak user/group sync
+#   4. App config    — push SAML/OIDC settings to each target app
+#   5. Validation    — verify SSO redirect flow end-to-end
+#
+# Usage:
+#   Onboard ALL apps:
+#     ansible-playbook -i ../../inventory playbooks/sso_onboarding.yml
+#
+#   Onboard a single app (e.g. Jenkins):
+#     ansible-playbook -i ../../inventory playbooks/sso_onboarding.yml --tags prep,jenkins
+#
+#   Skip validation:
+#     ansible-playbook -i ../../inventory playbooks/sso_onboarding.yml --skip-tags validate
+#
+# Tags reference:
+#   prep         — FreeIPA prep + Keycloak config + LDAP federation
+#   freeipa      — FreeIPA prep only
+#   keycloak     — Keycloak SAML clients only
+#   ldap         — LDAP federation only
+#   jenkins      — Jenkins SAML onboarding
+#   sonarqube    — SonarQube SAML onboarding
+#   grafana      — Grafana OIDC onboarding
+#   jira         — Jira SAML onboarding
+#   confluence   — Confluence SAML onboarding
+#   bitbucket    — Bitbucket SAML onboarding
+#   nessus       — Nessus/Tenable.sc SAML onboarding
+#   artifactory  — Artifactory SAML onboarding
+#   wazuh        — Wazuh SAML onboarding
+#   validate     — SSO validation suite
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 1: Prepare FreeIPA (service accounts, CA export)
+# ═══════════════════════════════════════════════════════════════════
+- import_playbook: freeipa_prep.yml
+  tags: [prep, freeipa]
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 2: Configure Keycloak realm + SAML clients + mappers
+# ═══════════════════════════════════════════════════════════════════
+- import_playbook: keycloak_config.yml
+  tags: [prep, keycloak]
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 3: Configure LDAP user federation (FreeIPA → Keycloak)
+# ═══════════════════════════════════════════════════════════════════
+- import_playbook: configure-keycloak-ldap-federation.yml
+  tags: [prep, ldap]
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 4: Per-app SAML / OIDC configuration
+# ═══════════════════════════════════════════════════════════════════
+- import_playbook: jenkins_saml.yml
+  tags: [apps, jenkins]
+
+- import_playbook: sonarqube_saml.yml
+  tags: [apps, sonarqube]
+
+- import_playbook: grafana_oidc.yml
+  tags: [apps, grafana]
+
+- import_playbook: jira_saml.yml
+  tags: [apps, jira]
+
+- import_playbook: confluence_saml.yml
+  tags: [apps, confluence]
+
+- import_playbook: bitbucket_saml.yml
+  tags: [apps, bitbucket]
+
+- import_playbook: nessus_saml.yml
+  tags: [apps, nessus]
+
+- import_playbook: artifactory_saml.yml
+  tags: [apps, artifactory]
+
+- import_playbook: wazuh_saml.yml
+  tags: [apps, wazuh]
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 5: Validate SSO flows
+# ═══════════════════════════════════════════════════════════════════
+- import_playbook: validation_sso.yml
+  tags: [validate]

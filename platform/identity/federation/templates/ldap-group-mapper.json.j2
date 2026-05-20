@@ -1,0 +1,17 @@
+{
+  "name": "freeipa-groups",
+  "providerId": "group-ldap-mapper",
+  "providerType": "org.keycloak.storage.ldap.mappers.LDAPStorageMapper",
+  "parentId": "{{ keycloak_saml_integration_ldap_provider_id }}",
+  "config": {
+    "groups.dn":                          ["{{ freeipa_groups_dn }}"],
+    "group.name.ldap.attribute":          ["cn"],
+    "group.object.classes":               ["groupOfNames"],
+    "preserve.group.inheritance":         ["{{ keycloak_ldap_preserve_group_inheritance | default('false') }}"],
+    "membership.ldap.attribute":          ["member"],
+    "membership.attribute.type":          ["DN"],
+    "mode":                               ["LDAP_ONLY"],
+    "user.roles.retrieve.strategy":       ["LOAD_GROUPS_BY_MEMBER_ATTRIBUTE"],
+    "drop.non.existing.groups.during.sync": ["false"]
+  }
+}

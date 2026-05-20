@@ -1,0 +1,42 @@
+# Ansible Inventory - All Application Deployment
+# Rocky Linux 9 hosts - credentials managed via vault
+
+[jenkins_servers]
+jenkins.local ansible_host=192.168.56.13
+
+[nginx]
+nginx-proxy ansible_host=192.168.56.15
+
+[sonarqube_servers]
+sonar.local ansible_host=192.168.56.16
+
+[artifactory_servers]
+artifactory.local ansible_host=192.168.56.11
+
+[nexus_servers]
+nexus.local ansible_host=192.168.56.11
+
+[securitycenter_servers]
+tenable.local ansible_host=192.168.56.10
+
+[wazuh_servers]
+wazuh.local ansible_host=192.168.56.19
+
+[freeipa]
+freeipa.local ansible_host=192.168.56.14
+
+[keycloak]
+keycloak.local ansible_host=192.168.56.12
+
+[monitoring_servers]
+grafana.local ansible_host=192.168.56.18
+prometheus.local ansible_host=192.168.56.18
+
+[local]
+localhost ansible_connection=local ansible_become=no
+
+[all:vars]
+ansible_become=yes
+ansible_become_method=sudo
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+ansible_python_interpreter=/usr/bin/python3

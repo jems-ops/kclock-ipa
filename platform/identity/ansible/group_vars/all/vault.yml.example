@@ -1,0 +1,58 @@
+---
+# Example template of group_vars/all/vault.yml.
+#
+# The actual vault.yml in this directory is encrypted with ansible-vault and
+# is the live source of truth. This file is an UN-encrypted reference for the
+# full set of keys the playbooks expect to find in the vault.
+#
+# Workflow:
+#   1. ansible-vault edit group_vars/all/vault.yml
+#   2. Ensure every key listed below has a value set.
+#   3. Save (the file stays encrypted).
+#
+# DO NOT COMMIT real secrets in this example file.
+
+# ── SSH / sudo ────────────────────────────────────────────────────────────
+vault_ansible_user:               "deploy"
+vault_ansible_password:           "REPLACE_ME"
+vault_ansible_become_password:    "REPLACE_ME"
+
+# ── Database credentials ──────────────────────────────────────────────────
+vault_postgresql_db_password:     "REPLACE_ME"
+vault_sonarqube_db_password:      "REPLACE_ME"
+
+# ── SSL certificate metadata ──────────────────────────────────────────────
+vault_ssl_organization:           "Example Org"
+vault_ssl_email:                  "ops@example.local"
+vault_ssl_country:                "US"
+vault_ssl_state:                  "CA"
+vault_ssl_city:                   "San Francisco"
+
+# ── Application passwords / tokens ────────────────────────────────────────
+vault_jenkins_admin_password:     "REPLACE_ME"
+vault_sonarqube_admin_token:      "squ_REPLACE_ME"
+vault_artifactory_admin_username: "admin"
+vault_artifactory_admin_password: "REPLACE_ME"
+
+# ── Keycloak admin ────────────────────────────────────────────────────────
+vault_keycloak_admin_user:        "admin"
+vault_keycloak_admin_password:    "REPLACE_ME"
+
+# ── API keys ──────────────────────────────────────────────────────────────
+vault_github_api_token:           "REPLACE_ME"
+vault_docker_registry_password:   "REPLACE_ME"
+
+# ── FreeIPA + Keycloak LDAP federation (added with keycloak-freeipa-template)
+# Required by:
+#   - roles/freeipa_keycloak_prep        (kinit / ipa CLI)
+#   - roles/keycloak_saml_integration    (LDAP federation submodule)
+vault_freeipa_admin_password:        "REPLACE_ME"   # IPA admin password (kinit)
+
+# svc.ldap — LDAP bind user for Keycloak's FreeIPA user federation sync.
+vault_freeipa_ldap_bind_password:    "REPLACE_ME"   # password for the svc.ldap IPA user
+
+# svc.keycloak — Keycloak service user for connecting to downstream apps
+# (replaces each app's default local user account).
+vault_freeipa_keycloak_svc_password: "REPLACE_ME"   # password for the svc.keycloak IPA user
+
+vault_keycloak_truststore_password:  "REPLACE_ME"   # passphrase for the JKS truststore on Keycloak host

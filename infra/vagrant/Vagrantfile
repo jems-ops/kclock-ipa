@@ -1,0 +1,51 @@
+require 'yaml'
+
+settings = YAML.load_file(
+  File.join(File.dirname(__FILE__), "settings.yaml")
+)
+
+Vagrant.configure("2") do |config|
+
+  config.vm.box = settings['box_name']
+  config.vm.box_version = settings['box_version']
+  config.vm.box_check_update = false
+
+  # Build dynamic hosts file entries
+  host_entries = settings['vm']
+    .map { |v| "#{v['ip']} #{v['name']}.local" }
+    .join("\n")
+
+  settings['vm'].each do |vm_config|
+
+    config.vm.define vm_config['name'] do |vm|
+
+      vm.vm.hostname = vm_config['name']
+
+      vm.vm.network "private_network",
+        ip: vm_config['ip']
+
+      vm.vm.synced_folder ".",
+        "/vagrant",
+        disabled: false
+
+      vm.vm.provider "vmware_desktop" do |vb|
+        vb.gui = false
+        vb.memory = vm_config['memory']
+        vb.cpus = vm_config['cpus']
+      end
+
+      vm.vm.provision "shell", inline: <<-SHELL
+        yum update -y
+
+        yum install -y \
+          wget vim net-tools gcc make tar git unzip \
+          sysstat tree curl bind-utils
+
+        grep -q "#{vm_config['name']}.local" /etc/hosts || \
+        echo "#{host_entries}" >> /etc/hosts
+
+      SHELL
+
+    end
+  end
+end

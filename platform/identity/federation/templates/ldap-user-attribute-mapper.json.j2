@@ -1,0 +1,13 @@
+{
+  "name": "{{ mapper_name }}",
+  "providerId": "user-attribute-ldap-mapper",
+  "providerType": "org.keycloak.storage.ldap.mappers.LDAPStorageMapper",
+  "parentId": "{{ keycloak_saml_integration_ldap_provider_id }}",
+  "config": {
+    "ldap.attribute":                ["{{ ldap_attr }}"],
+    "user.model.attribute":          ["{{ user_model_attr }}"],
+    "read.only":                     ["true"],
+    "always.read.value.from.ldap":   ["true"],
+    "is.mandatory.in.ldap":          ["false"]
+  }
+}

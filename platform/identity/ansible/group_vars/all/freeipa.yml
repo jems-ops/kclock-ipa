@@ -1,0 +1,114 @@
+---
+# FreeIPA + Keycloak LDAP federation variables
+# Ported from keycloak-ipa-integration @ keycloak-ipa-multi-app
+# (group_vars/all/main.yml lines 22-99). Centralized here so the
+# keycloak_saml_integration role and the new freeipa_keycloak_prep role
+# share one source of truth and no role hardcodes a hostname.
+
+# ───────────────────────────────────────────────────────────────────────────
+# Hostname resolution from inventory
+# ───────────────────────────────────────────────────────────────────────────
+freeipa_hostname: "{{ groups['freeipa'][0] }}"
+freeipa_base_url: "https://{{ freeipa_hostname }}"
+
+# ───────────────────────────────────────────────────────────────────────────
+# FreeIPA settings
+# These default from the inventory hostname. Override only if your IPA domain
+# differs from the host FQDN.
+# ───────────────────────────────────────────────────────────────────────────
+freeipa_domain:   "{{ freeipa_hostname }}"
+freeipa_realm:    "{{ freeipa_domain | upper }}"
+freeipa_base_dn:  "{{ freeipa_domain.split('.') | map('regex_replace', '^(.*)$', 'dc=\\1') | join(',') }}"
+
+freeipa_users_dn:  "cn=users,cn=accounts,{{ freeipa_base_dn }}"
+freeipa_groups_dn: "cn=groups,cn=accounts,{{ freeipa_base_dn }}"
+
+# ── LDAP bind service account ──
+# svc.ldap is the dedicated IPA user Keycloak uses for LDAP federation
+# (reading users/groups from FreeIPA). It is a regular IPA user under
+# cn=users,cn=accounts (not a sysaccount).
+# Managed via the IPA CLI (kinit admin + ipa user-*) in freeipa_keycloak_prep.
+freeipa_bind_uid:       svc.ldap
+freeipa_bind_dn:        "uid={{ freeipa_bind_uid }},cn=users,cn=accounts,{{ freeipa_base_dn }}"
+freeipa_bind_password:  "{{ vault_freeipa_ldap_bind_password }}"
+
+# ── Keycloak application service account ──
+# svc.keycloak is the dedicated IPA user that Keycloak presents when
+# connecting to downstream applications (replaces each app's default
+# local user account).
+freeipa_keycloak_svc_uid:      svc.keycloak
+freeipa_keycloak_svc_dn:       "uid={{ freeipa_keycloak_svc_uid }},cn=users,cn=accounts,{{ freeipa_base_dn }}"
+freeipa_keycloak_svc_password: "{{ vault_freeipa_keycloak_svc_password }}"
+
+freeipa_admin_user:     admin
+freeipa_admin_password: "{{ vault_freeipa_admin_password }}"
+
+# Canonical per-app admin groups to ensure exist in FreeIPA. Names should match
+# the target app's built-in admin group so SAML group sync grants admin with no
+# per-app permission grants required.
+freeipa_app_admin_groups:
+  - name: sonar-administrators
+    desc: SonarQube administrators (matches built-in sonar-administrators)
+  - name: jenkins-administrators
+    desc: Jenkins administrators
+
+freeipa_ldap_scheme: "ldap"
+freeipa_ldap_port:   389
+freeipa_ldap_url:    "{{ freeipa_ldap_scheme }}://{{ freeipa_hostname }}:{{ freeipa_ldap_port }}"
+
+# FreeIPA CA cert on the IPA server.
+# Leave empty ("") to auto-detect across standard paths — see role defaults
+# for the candidate list. Set explicitly only if your install uses a
+# non-standard location.
+freeipa_ca_cert_path:            ""
+freeipa_keycloak_ca_export_path: /tmp/freeipa-ca.crt
+
+# ───────────────────────────────────────────────────────────────────────────
+# Keycloak host-side settings used by the LDAP federation submodule.
+# (Keycloak admin URL / realm / SAML settings live in saml_integration.yml.)
+# ───────────────────────────────────────────────────────────────────────────
+# Servers in this environment have Keycloak installed at /opt/keycloak-22.0.5
+# (overrides the install-keycloak role default of /opt/keycloak).
+keycloak_home:    /opt/keycloak-22.0.5
+keycloak_tmp_dir: /tmp/keycloak-ansible
+
+# LDAP user federation
+keycloak_ldap_provider_name: freeipa-ldap
+keycloak_ldap_username_attr: uid
+keycloak_ldap_rdn_attr:      uid
+keycloak_ldap_uuid_attr:     ipaUniqueID
+keycloak_ldap_user_object_classes:
+  - person
+  - organizationalPerson
+  - inetOrgPerson
+  - posixAccount
+  - krbPrincipalAux
+
+keycloak_ldap_bind_password:      "{{ vault_freeipa_ldap_bind_password }}"
+keycloak_ldap_use_truststore_spi: "ALWAYS"
+
+# Group LDAP mapper behaviour.
+#
+# preserve.group.inheritance:
+#   "true"  - mirror the LDAP group hierarchy into Keycloak's group tree.
+#             Requires every group to have at most one parent. With
+#             FreeIPA's nested groups (groupOfNames + member), a single
+#             group can appear under multiple parents and Keycloak will
+#             abort the full sync with HTTP 400 "GroupsMultipleParents".
+#   "false" - import every LDAP group as a flat top-level group in
+#             Keycloak. Always works; group-membership is preserved per
+#             user, only the parent/child relationships between groups
+#             are dropped. This is what we want when authorization is
+#             driven by per-app admin groups (e.g. jenkins-administrators)
+#             rather than a hierarchy.
+#
+# Default "false" mirrors what most FreeIPA deployments need. Override to
+# "true" only if your IPA tree is single-parent and you need the hierarchy
+# in Keycloak.
+keycloak_ldap_preserve_group_inheritance: "false"
+
+# Truststore for LDAPS outbound connections.
+# The JKS lives inside {{ keycloak_home }}/conf/truststores/ for a cleaner layout.
+keycloak_truststore_dir:      "{{ keycloak_home }}/conf/truststores"
+keycloak_truststore_path:     "{{ keycloak_truststore_dir }}/truststore.jks"
+keycloak_truststore_password: "{{ vault_keycloak_truststore_password }}"

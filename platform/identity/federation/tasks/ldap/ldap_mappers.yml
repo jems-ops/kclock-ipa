@@ -1,0 +1,102 @@
+---
+# Create six LDAP mappers (username/email/firstName/lastName/full-name/groups)
+# parented to the FreeIPA LDAP UserStorageProvider component.
+#
+# Mappers are created via POST /admin/realms/{realm}/components.
+# Re-runs return 409 when the mapper already exists by name; we accept that
+# status so the play stays idempotent.
+
+- name: List existing LDAP sub-mappers (parented to provider)
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components?parent={{ keycloak_saml_integration_ldap_provider_id }}&type=org.keycloak.storage.ldap.mappers.LDAPStorageMapper"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+    status_code: 200
+    validate_certs: false
+  register: keycloak_saml_integration_ldap_mapper_existing
+
+- name: Build attribute LDAP mapper specs
+  ansible.builtin.set_fact:
+    keycloak_saml_integration_ldap_attribute_mappers:
+      - name: username
+        ldap_attr: uid
+        user_model_attr: username
+      - name: email
+        ldap_attr: mail
+        user_model_attr: email
+      - name: firstName
+        ldap_attr: givenName
+        user_model_attr: firstName
+      - name: lastName
+        ldap_attr: sn
+        user_model_attr: lastName
+
+- name: Create user-attribute LDAP mappers (username/email/firstName/lastName)
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ lookup('template', 'ldap-user-attribute-mapper.json.j2') | from_json }}"
+    status_code: [201, 409]
+    validate_certs: false
+  loop: "{{ keycloak_saml_integration_ldap_attribute_mappers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    mapper_name: "{{ item.name }}"
+    ldap_attr: "{{ item.ldap_attr }}"
+    user_model_attr: "{{ item.user_model_attr }}"
+  when: "item.name not in (keycloak_saml_integration_ldap_mapper_existing.json | map(attribute='name') | list)"
+
+- name: Create full-name LDAP mapper
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ lookup('template', 'ldap-full-name-mapper.json.j2') | from_json }}"
+    status_code: [201, 409]
+    validate_certs: false
+  when: "'full-name' not in (keycloak_saml_integration_ldap_mapper_existing.json | map(attribute='name') | list)"
+
+- name: Resolve existing freeipa-groups LDAP mapper id (if any)
+  ansible.builtin.set_fact:
+    keycloak_saml_integration_freeipa_groups_mapper_id: >-
+      {{ (keycloak_saml_integration_ldap_mapper_existing.json
+          | selectattr('name', 'equalto', 'freeipa-groups')
+          | list | first | default({})).id | default('') }}
+
+- name: Create group LDAP mapper (if missing)
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ lookup('template', 'ldap-group-mapper.json.j2') | from_json }}"
+    status_code: [201, 409]
+    validate_certs: false
+  when: keycloak_saml_integration_freeipa_groups_mapper_id | length == 0
+
+# Reapply config when the mapper already exists so changes to
+# keycloak_ldap_preserve_group_inheritance (and other settings in the
+# template) propagate to existing installs without manual cleanup.
+- name: Update existing freeipa-groups LDAP mapper (idempotent re-apply)
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components/{{ keycloak_saml_integration_freeipa_groups_mapper_id }}"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ lookup('template', 'ldap-group-mapper.json.j2') | from_json | combine({'id': keycloak_saml_integration_freeipa_groups_mapper_id}) }}"
+    status_code: [204]
+    validate_certs: false
+  when: keycloak_saml_integration_freeipa_groups_mapper_id | length > 0

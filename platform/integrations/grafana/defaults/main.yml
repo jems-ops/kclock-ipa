@@ -1,0 +1,18 @@
+---
+# keycloak_realm_base_url, keycloak_logout_url, grafana_base_url are defined
+# centrally in group_vars/all — do not redeclare here.
+
+# Grafana config file path. Leave empty for auto-detect.
+grafana_config_file: ""
+
+# Keycloak OIDC client ID to create/use.
+grafana_keycloak_client_id: grafana
+
+# Label shown on the Grafana login button.
+grafana_oauth_button_name: "Login with FreeIPA via Keycloak"
+
+# FreeIPA group whose members get Grafana Admin role. All others get Viewer.
+grafana_admin_group: grafana-admins
+
+# TLS validation (false for self-signed lab certs).
+grafana_validate_certs: false

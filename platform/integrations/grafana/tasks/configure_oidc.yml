@@ -1,0 +1,43 @@
+---
+- name: Backup grafana.ini before changes
+  ansible.builtin.copy:
+    src: "{{ grafana_config_path }}"
+    dest: "{{ grafana_config_path }}.bak"
+    remote_src: true
+    mode: "0640"
+
+- name: Set Grafana root_url for HTTPS reverse proxy
+  ansible.builtin.replace:
+    path: "{{ grafana_config_path }}"
+    regexp: 'root_url\s*=\s*http://'
+    replace: 'root_url = https://'
+  notify: restart grafana
+
+- name: Remove duplicate [server] block if present
+  ansible.builtin.blockinfile:
+    path: "{{ grafana_config_path }}"
+    marker: "# {mark} ANSIBLE MANAGED — Server"
+    state: absent
+
+- name: Enable generic OAuth in grafana.ini
+  ansible.builtin.blockinfile:
+    path: "{{ grafana_config_path }}"
+    marker: "# {mark} ANSIBLE MANAGED — Keycloak OIDC"
+    block: |
+      [auth.generic_oauth]
+      enabled = true
+      name = {{ grafana_oauth_button_name }}
+      allow_sign_up = true
+      client_id = {{ grafana_keycloak_client_id }}
+      client_secret = {{ grafana_client_secret }}
+      scopes = openid email profile
+      auth_url = {{ keycloak_realm_base_url }}/protocol/openid-connect/auth
+      token_url = {{ keycloak_realm_base_url }}/protocol/openid-connect/token
+      api_url = {{ keycloak_realm_base_url }}/protocol/openid-connect/userinfo
+      signout_redirect_url = {{ keycloak_logout_url }}?redirect_uri={{ grafana_base_url }}
+      role_attribute_path = contains(groups[*], '{{ grafana_admin_group }}') && 'Admin' || 'Viewer'
+      tls_skip_verify_insecure = {{ grafana_validate_certs | lower | replace('true','false') | replace('false','true') }}
+      email_attribute_path = email
+      login_attribute_path = preferred_username
+      name_attribute_path = name
+  notify: restart grafana

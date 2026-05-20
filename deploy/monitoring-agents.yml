@@ -1,0 +1,191 @@
+---
+# Deploy Monitoring Agents (node_exporter) to All Application Servers
+# Installs Prometheus node_exporter on every managed host so Prometheus can
+# scrape system metrics (CPU, memory, disk, network).
+#
+# Usage:
+#   Deploy agents to all servers:
+#     ansible-playbook monitoring-agents.yml
+#
+#   Only deploy to CI/CD servers:
+#     ansible-playbook monitoring-agents.yml --limit jenkins_servers,sonarqube_servers,nexus_servers
+
+- name: Deploy node_exporter to application servers
+  hosts: jenkins_servers,sonarqube_servers,nexus_servers,artifactory_servers,keycloak,freeipa,wazuh_servers,securitycenter_servers
+  become: yes
+  gather_facts: yes
+
+  vars:
+    node_exporter_version: "1.8.2"
+    node_exporter_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}"
+    node_exporter_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}.tar.gz"
+    node_exporter_port: 9100
+
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          Monitoring Agent Deployment
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          node_exporter version: {{ node_exporter_version }}
+
+  tasks:
+    # ── Install node_exporter ──────────────────────────────────────
+    - name: Check if node_exporter is already installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/node_exporter
+      register: ne_bin
+
+    - name: Create node_exporter system user
+      ansible.builtin.user:
+        name: node_exporter
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+      when: not ne_bin.stat.exists
+
+    - name: Download node_exporter
+      ansible.builtin.get_url:
+        url: "{{ node_exporter_url }}"
+        dest: /tmp/node_exporter.tar.gz
+        mode: '0644'
+      when: not ne_bin.stat.exists
+
+    - name: Extract node_exporter
+      ansible.builtin.unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp
+        remote_src: true
+      when: not ne_bin.stat.exists
+
+    - name: Install node_exporter binary
+      ansible.builtin.copy:
+        src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}/node_exporter"
+        dest: /usr/local/bin/node_exporter
+        owner: root
+        group: root
+        mode: '0755'
+        remote_src: true
+      when: not ne_bin.stat.exists
+      notify: restart node_exporter
+
+    - name: Deploy node_exporter systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/node_exporter.service
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User=node_exporter
+          Group=node_exporter
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter \
+            --web.listen-address=:{{ node_exporter_port }} \
+            --collector.systemd \
+            --collector.processes
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: restart node_exporter
+
+    - name: Enable and start node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        daemon_reload: true
+        enabled: true
+        state: started
+
+    # ── Firewall ───────────────────────────────────────────────────
+    - name: Open firewall for node_exporter (firewalld)
+      ansible.posix.firewalld:
+        port: "{{ node_exporter_port }}/tcp"
+        permanent: true
+        state: enabled
+        immediate: true
+      when: ansible_facts.services is defined and 'firewalld.service' in ansible_facts.services
+      ignore_errors: true
+
+    # ── Health check ───────────────────────────────────────────────
+    - name: Verify node_exporter is responding
+      ansible.builtin.uri:
+        url: "http://localhost:{{ node_exporter_port }}/metrics"
+        method: GET
+        status_code: 200
+      register: ne_health
+      retries: 3
+      delay: 5
+      until: ne_health.status == 200
+
+    - name: Cleanup download artifacts
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/node_exporter.tar.gz
+        - "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}"
+
+  handlers:
+    - name: restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        daemon_reload: true
+        state: restarted
+
+  post_tasks:
+    - name: Display completion
+      debug:
+        msg: |
+          node_exporter {{ node_exporter_version }} deployed on {{ inventory_hostname }}
+          Metrics: http://{{ inventory_hostname }}:{{ node_exporter_port }}/metrics
+
+# ═══════════════════════════════════════════════════════════════════
+# Update Prometheus scrape targets
+# ═══════════════════════════════════════════════════════════════════
+- name: Register scrape targets with Prometheus
+  hosts: monitoring_servers
+  become: yes
+  gather_facts: no
+
+  vars:
+    prometheus_config_dir: /etc/prometheus
+    prometheus_targets_file: "{{ prometheus_config_dir }}/targets/nodes.yml"
+
+  tasks:
+    - name: Ensure targets directory exists
+      ansible.builtin.file:
+        path: "{{ prometheus_config_dir }}/targets"
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+
+    - name: Generate node_exporter target list
+      ansible.builtin.copy:
+        dest: "{{ prometheus_targets_file }}"
+        owner: prometheus
+        group: prometheus
+        mode: '0644'
+        content: |
+          # Auto-generated by monitoring-agents.yml
+          - targets:
+          {% for host in groups['all'] | difference(groups.get('monitoring_servers', [])) | difference(groups.get('local', [])) | sort %}
+            - {{ hostvars[host].ansible_host | default(host) }}:9100
+          {% endfor %}
+            labels:
+              job: node
+              env: lab
+      notify: reload prometheus
+
+  handlers:
+    - name: reload prometheus
+      ansible.builtin.systemd:
+        name: prometheus
+        state: reloaded

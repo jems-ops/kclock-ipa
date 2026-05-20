@@ -1,0 +1,118 @@
+---
+# Create or update the FreeIPA LDAP UserStorageProvider in Keycloak via the
+# admin REST API. The reference role uses kcadm.sh; this is the equivalent
+# using ansible.builtin.uri so it matches the rest of this role's flow.
+
+- name: Get realm details (need realm UUID for parentId)
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+    status_code: 200
+    validate_certs: false
+  register: keycloak_saml_integration_realm_info
+
+- name: Set realm UUID fact
+  ansible.builtin.set_fact:
+    keycloak_saml_integration_realm_uuid: "{{ keycloak_saml_integration_realm_info.json.id }}"
+
+- name: List existing components in realm
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components?type=org.keycloak.storage.UserStorageProvider"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+    status_code: 200
+    validate_certs: false
+  register: keycloak_saml_integration_user_storage
+
+- name: Find existing FreeIPA LDAP provider (if any)
+  ansible.builtin.set_fact:
+    keycloak_saml_integration_ldap_provider_existing: >-
+      {{
+        (keycloak_saml_integration_user_storage.json
+         | selectattr('providerId', 'equalto', 'ldap')
+         | selectattr('name', 'equalto', keycloak_ldap_provider_name)
+         | list
+         | first) | default({})
+      }}
+
+- name: Set LDAP provider presence facts
+  ansible.builtin.set_fact:
+    keycloak_saml_integration_ldap_provider_present: "{{ keycloak_saml_integration_ldap_provider_existing | length > 0 }}"
+    keycloak_saml_integration_ldap_provider_id: "{{ keycloak_saml_integration_ldap_provider_existing.id | default('') }}"
+
+- name: Render LDAP provider JSON body from template
+  ansible.builtin.set_fact:
+    keycloak_saml_integration_ldap_provider_body: "{{ lookup('template', 'ldap-provider.json.j2') | from_json }}"
+  no_log: true
+
+- name: Create LDAP provider component
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ keycloak_saml_integration_ldap_provider_body }}"
+    status_code: [201]
+    return_content: true
+    validate_certs: false
+  register: keycloak_saml_integration_ldap_provider_create
+  when: not keycloak_saml_integration_ldap_provider_present
+  no_log: true
+
+- name: Refresh component list after create
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components?type=org.keycloak.storage.UserStorageProvider"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+    status_code: 200
+    validate_certs: false
+  register: keycloak_saml_integration_user_storage_refresh
+  when: not keycloak_saml_integration_ldap_provider_present
+
+- name: Resolve LDAP provider ID after create
+  ansible.builtin.set_fact:
+    keycloak_saml_integration_ldap_provider_id: >-
+      {{
+        (keycloak_saml_integration_user_storage_refresh.json
+         | selectattr('providerId', 'equalto', 'ldap')
+         | selectattr('name', 'equalto', keycloak_ldap_provider_name)
+         | list
+         | first | default({})
+        ).id | default('')
+      }}
+  when: not keycloak_saml_integration_ldap_provider_present
+
+- name: Validate LDAP provider presence
+  ansible.builtin.assert:
+    that:
+      - keycloak_saml_integration_ldap_provider_id | length > 0
+    fail_msg: "LDAP provider '{{ keycloak_ldap_provider_name }}' not found or failed to create"
+
+- name: Update LDAP provider component (idempotent re-apply)
+  ansible.builtin.uri:
+    url: "{{ freeipa_keycloak_prep_keycloak.admin_api_url }}/admin/realms/{{ freeipa_keycloak_prep_keycloak.realm }}/components/{{ keycloak_saml_integration_ldap_provider_id }}"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ keycloak_saml_integration_access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ keycloak_saml_integration_ldap_provider_body | combine({'id': keycloak_saml_integration_ldap_provider_id}) }}"
+    status_code: [204]
+    validate_certs: false
+  when: keycloak_saml_integration_ldap_provider_present
+  no_log: true
+
+- name: LDAP provider status
+  ansible.builtin.debug:
+    msg: >-
+      LDAP provider '{{ keycloak_ldap_provider_name }}'
+      (ID: {{ keycloak_saml_integration_ldap_provider_id }})
+      status: {{
+        'created' if not keycloak_saml_integration_ldap_provider_present else 'updated'
+      }}

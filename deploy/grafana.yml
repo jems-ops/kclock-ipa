@@ -1,0 +1,25 @@
+---
+- name: Install Grafana
+  hosts: grafana.local
+  gather_facts: yes
+  become: yes
+
+  pre_tasks:
+    - name: Display installation information
+      debug:
+        msg: |
+          Grafana Installation
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          Time: {{ ansible_date_time.iso8601 }}
+
+  roles:
+    - install-grafana
+
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          Grafana installed on {{ inventory_hostname }}
+          Direct URL: http://{{ inventory_hostname }}:3000
+          Default credentials: admin/admin
+          Next: run nginx-proxy.yml to configure reverse proxy

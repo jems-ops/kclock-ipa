@@ -1,0 +1,86 @@
+---
+# Import the FreeIPA CA into the Keycloak JKS truststore, wire it into
+# keycloak.conf via SPI truststore options, and restart Keycloak.
+#
+# Runs on the Keycloak host. Pulls the IPA CA from the FreeIPA host using slurp
+# (no controller staging required).
+
+- name: Ensure Keycloak tmp directory exists
+  ansible.builtin.file:
+    path: "{{ keycloak_tmp_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Slurp FreeIPA CA cert from FreeIPA host
+  ansible.builtin.slurp:
+    src: "{{ freeipa_keycloak_ca_export_path }}"
+  register: keycloak_saml_integration_freeipa_ca_slurp
+  delegate_to: "{{ groups['freeipa'][0] }}"
+
+- name: Ensure Keycloak truststore directory exists
+  ansible.builtin.file:
+    path: "{{ keycloak_truststore_dir }}"
+    state: directory
+    owner: keycloak
+    group: keycloak
+    mode: "0750"
+
+- name: Write FreeIPA CA cert to Keycloak host
+  ansible.builtin.copy:
+    content: "{{ keycloak_saml_integration_freeipa_ca_slurp.content | b64decode }}"
+    dest: "{{ keycloak_tmp_dir }}/freeipa-ca.crt"
+    mode: "0644"
+
+- name: Check if FreeIPA CA alias already present in truststore
+  ansible.builtin.command: >
+    keytool -list
+    -keystore {{ keycloak_truststore_path }}
+    -storepass {{ keycloak_truststore_password }}
+    -alias freeipa-ca
+  register: keycloak_saml_integration_truststore_alias_check
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Import FreeIPA CA into Keycloak truststore
+  ansible.builtin.command: >
+    keytool -importcert
+    -keystore {{ keycloak_truststore_path }}
+    -storepass {{ keycloak_truststore_password }}
+    -alias freeipa-ca
+    -file {{ keycloak_tmp_dir }}/freeipa-ca.crt
+    -noprompt
+  when: keycloak_saml_integration_truststore_alias_check.rc != 0
+  register: keycloak_saml_integration_truststore_import
+  changed_when: keycloak_saml_integration_truststore_import.rc == 0
+  notify: restart keycloak
+
+- name: Ensure truststore is owned by keycloak user
+  ansible.builtin.file:
+    path: "{{ keycloak_truststore_path }}"
+    owner: keycloak
+    group: keycloak
+    mode: "0640"
+  when: keycloak_saml_integration_truststore_alias_check.rc != 0
+
+- name: Configure SPI truststore in keycloak.conf
+  ansible.builtin.blockinfile:
+    path: "{{ keycloak_home }}/conf/keycloak.conf"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - SPI TRUSTSTORE"
+    block: |
+      spi-truststore-file-file={{ keycloak_truststore_path }}
+      spi-truststore-file-password={{ keycloak_truststore_password }}
+      spi-truststore-file-hostname-verification-policy=WILDCARD
+    state: present
+  notify: restart keycloak
+
+- name: Flush handlers to restart Keycloak before LDAP operations
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for Keycloak to be ready after restart
+  ansible.builtin.wait_for:
+    host: localhost
+    port: 8080
+    delay: 5
+    timeout: 120
+    state: started

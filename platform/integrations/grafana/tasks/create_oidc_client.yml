@@ -1,0 +1,80 @@
+---
+# Creates the Keycloak OIDC client for Grafana and retrieves the client secret.
+# Runs on the Keycloak host (delegated from the Grafana host).
+
+- name: Authenticate kcadm.sh to Keycloak
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} config credentials
+    --server http://localhost:8080
+    --realm master
+    --user {{ keycloak_admin_user }}
+    --password {{ keycloak_admin_password }}
+  delegate_to: "{{ groups['keycloak'][0] }}"
+  become: true
+  changed_when: false
+  no_log: true
+
+- name: Check if Grafana OIDC client already exists
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get clients
+    -r {{ keycloak_realm }}
+    -q clientId={{ grafana_keycloak_client_id }}
+  register: grafana_client_lookup
+  changed_when: false
+  delegate_to: "{{ groups['keycloak'][0] }}"
+  become: true
+
+- name: Create Grafana OIDC client in Keycloak
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} create clients
+    -r {{ keycloak_realm }}
+    -s clientId={{ grafana_keycloak_client_id }}
+    -s "redirectUris=[\"{{ grafana_base_url }}/login/generic_oauth\"]"
+    -s publicClient=false
+    -s standardFlowEnabled=true
+    -s enabled=true
+    -s protocol=openid-connect
+  when: (grafana_client_lookup.stdout | from_json | length) == 0
+  register: grafana_client_create
+  changed_when: grafana_client_create.rc == 0
+  delegate_to: "{{ groups['keycloak'][0] }}"
+  become: true
+
+- name: Retrieve Grafana client UUID
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get clients
+    -r {{ keycloak_realm }}
+    -q clientId={{ grafana_keycloak_client_id }}
+    --fields id
+  register: grafana_client_id_raw
+  changed_when: false
+  delegate_to: "{{ groups['keycloak'][0] }}"
+  become: true
+
+- name: Set Grafana client UUID fact
+  ansible.builtin.set_fact:
+    grafana_client_uuid: "{{ (grafana_client_id_raw.stdout | from_json | first).id }}"
+
+- name: Update redirect URIs to match current base URL
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} update clients/{{ grafana_client_uuid }}
+    -r {{ keycloak_realm }}
+    -s "redirectUris=[\"{{ grafana_base_url }}/login/generic_oauth\"]"
+    -s "webOrigins=[\"{{ grafana_base_url }}\"]"
+  delegate_to: "{{ groups['keycloak'][0] }}"
+  become: true
+  changed_when: true
+
+- name: Retrieve Grafana client secret
+  ansible.builtin.command: >
+    {{ keycloak_kcadm }} get clients/{{ grafana_client_uuid }}/client-secret
+    -r {{ keycloak_realm }}
+  register: grafana_secret_raw
+  changed_when: false
+  delegate_to: "{{ groups['keycloak'][0] }}"
+  become: true
+
+- name: Set Grafana client secret fact
+  ansible.builtin.set_fact:
+    grafana_client_secret: "{{ (grafana_secret_raw.stdout | from_json).value }}"
+  no_log: true

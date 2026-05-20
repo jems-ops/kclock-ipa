@@ -1,0 +1,26 @@
+AI Angle create an AI agent: AI Compliance Engine
+
+Examples:
+
+* detect STIG drift automatically
+* explain failed controls
+* recommend remediations
+* generate audit evidence
+* AI-generated hardening playbooks
+* AI-assisted SAML/OIDC onboarding
+* auto-generate Keycloak configs
+* natural-language compliance search
+
+Example:
+
+“Why is Wazuh SAML failing?”
+
+AI analyzes:
+
+* logs
+* mappings
+* NGINX headers
+* Keycloak events
+* suggests fix automatically
+
+That becomes powerful.

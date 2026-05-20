@@ -1,0 +1,20 @@
+---
+# Master playbook — runs all steps in the correct order.
+# Run individually for selective execution, or use sso_onboarding.yml for
+# tag-based selective onboarding.
+
+# --- Identity foundation ---
+- import_playbook: freeipa_prep.yml
+- import_playbook: keycloak_config.yml
+- import_playbook: configure-keycloak-ldap-federation.yml
+
+# --- Per-app SSO configuration ---
+- import_playbook: sonarqube_saml.yml
+- import_playbook: jenkins_saml.yml
+- import_playbook: grafana_oidc.yml
+- import_playbook: jira_saml.yml
+- import_playbook: confluence_saml.yml
+- import_playbook: bitbucket_saml.yml
+- import_playbook: nessus_saml.yml
+- import_playbook: artifactory_saml.yml
+- import_playbook: wazuh_saml.yml

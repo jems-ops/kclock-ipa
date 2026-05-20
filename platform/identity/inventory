@@ -1,0 +1,64 @@
+# Ansible Inventory for Keycloak + FreeIPA + SSO Automation
+# Rocky Linux 9 hosts - credentials managed via vault
+# Hostnames represent DNS names (after reverse proxy where applicable)
+
+[freeipa]
+freeipa.local ansible_host=192.168.56.14
+
+[keycloak]
+keycloak.local ansible_host=192.168.56.12
+
+[grafana]
+grafana.local ansible_host=192.168.56.18
+
+[prometheus]
+prometheus.local ansible_host=192.168.56.18
+
+[monitoring_servers:children]
+grafana
+prometheus
+
+[jenkins_servers]
+jenkins.local ansible_host=192.168.56.13
+
+# Alias so playbooks can use hosts: jenkins
+[jenkins:children]
+jenkins_servers
+
+[nginx]
+nginx-proxy ansible_host=192.168.56.15
+
+[sonarqube_servers]
+sonar.local ansible_host=192.168.56.16
+
+[sonarqube:children]
+sonarqube_servers
+
+[jira]
+jira.local ansible_host=192.168.56.20
+
+[confluence]
+confluence.local ansible_host=192.168.56.21
+
+[bitbucket]
+bitbucket.local ansible_host=192.168.56.22
+
+[nessus]
+nessus.local ansible_host=192.168.56.23
+
+[artifactory_servers]
+artifactory.local ansible_host=192.168.56.11
+
+[artifactory:children]
+artifactory_servers
+
+[wazuh]
+wazuh.va2.magellan.net ansible_host=192.168.56.24
+
+
+# Group variables for all hosts
+[all:vars]
+ansible_become=yes
+ansible_become_method=sudo
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+ansible_python_interpreter=/usr/bin/python3

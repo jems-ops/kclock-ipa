@@ -1,0 +1,346 @@
+---
+# Combined Nginx Reverse Proxy + SSL Deployment
+# Installs nginx, configures reverse proxy for all backends, and generates SSL certs
+# Run standalone:  ansible-playbook nginx-proxy.yml
+# Or via site.yml: ansible-playbook site.yml
+
+- name: Install Nginx and Configure Reverse Proxy
+  hosts: nginx
+  gather_facts: yes
+  become: yes
+
+  vars:
+    # Keycloak's keycloak-http-redirect.conf already defines default_server on :80
+    nginx_skip_default_server: true
+    # Services with dedicated SSL conf files - exclude from dynamic-backends.conf
+    nginx_exclude_server_names:
+      - "jenkins.local"
+      - "sonar.local"
+      - "grafana.local"
+      - "prometheus.local"
+
+  pre_tasks:
+    - name: Display nginx setup information
+      debug:
+        msg: |
+          Nginx Reverse Proxy Deployment
+          Target: {{ inventory_hostname }}
+          Backends: {{ site_backends | length }}
+          Services: {{ site_backends | map(attribute='server_name') | join(', ') }}
+
+  roles:
+    - setup-nginx-reverse-proxy
+
+  post_tasks:
+    - name: Display reverse proxy completion
+      debug:
+        msg: |
+          Nginx reverse proxy configured for {{ site_backends | length }} backends
+          Config: /etc/nginx/conf.d/dynamic-backends.conf
+          Next: SSL certificates will be installed
+
+- name: Install SSL Certificates for All Backends
+  hosts: nginx
+  gather_facts: yes
+  become: yes
+
+  pre_tasks:
+    - name: Display SSL installation information
+      debug:
+        msg: |
+          Installing SSL certificates
+          Backends: {{ site_backends | map(attribute='server_name') | join(', ') }}
+          Certificates: {{ site_backends | length }}
+
+  roles:
+    - install-ssl-cert
+
+  post_tasks:
+    - name: Display SSL completion
+      debug:
+        msg: |
+          SSL certificates installed for all backends
+
+          HTTPS URLs:
+          {% for backend in site_backends %}
+          - https://{{ backend.server_name }}
+          {% endfor %}
+
+          Note: Self-signed certificates require browser security exceptions
+
+- name: Configure Jenkins-specific Nginx HTTPS
+  hosts: nginx
+  become: yes
+
+  vars:
+    ssl_dir: /etc/nginx/ssl
+    ssl_protocols: "TLSv1.2 TLSv1.3"
+    ssl_ciphers: "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384"
+    jenkins_server_name: jenkins.local
+    jenkins_backend_host: "192.168.56.13"
+    jenkins_backend_port: "8080"
+    ssl_cert: "{{ ssl_dir }}/jenkins-local.crt"
+    ssl_key: "{{ ssl_dir }}/jenkins-local.key"
+
+  tasks:
+    - name: Ensure SSL directory exists
+      ansible.builtin.file:
+        path: "{{ ssl_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Generate self-signed SSL certificate for Jenkins
+      ansible.builtin.command: >
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048
+        -keyout {{ ssl_key }}
+        -out {{ ssl_cert }}
+        -subj "/C=US/ST=California/L=San Francisco/O=DevOps Automation/OU=IT/CN={{ jenkins_server_name }}"
+      args:
+        creates: "{{ ssl_cert }}"
+
+    - name: Deploy Jenkins HTTP redirect config
+      ansible.builtin.copy:
+        dest: /etc/nginx/conf.d/jenkins-http-redirect.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          # Jenkins HTTP to HTTPS redirect
+          server {
+            listen 80;
+            server_name {{ jenkins_server_name }};
+            return 301 https://$host$request_uri;
+          }
+      notify: reload nginx
+
+    - name: Deploy Jenkins HTTPS reverse proxy config
+      ansible.builtin.copy:
+        dest: /etc/nginx/conf.d/jenkins-https.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          upstream jenkins_upstream {
+            server {{ jenkins_backend_host }}:{{ jenkins_backend_port }};
+            keepalive 32;
+          }
+
+          map $http_upgrade $connection_upgrade {
+            default upgrade;
+            '' close;
+          }
+
+          server {
+            listen 443 ssl;
+            server_name {{ jenkins_server_name }};
+
+            ssl_certificate     {{ ssl_cert }};
+            ssl_certificate_key {{ ssl_key }};
+            ssl_protocols {{ ssl_protocols }};
+            ssl_prefer_server_ciphers on;
+            ssl_ciphers {{ ssl_ciphers }};
+
+            add_header Strict-Transport-Security "max-age=63072000" always;
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+
+            root /var/run/jenkins/war/;
+            ignore_invalid_headers off;
+
+            location ~ "^\/static\/[0-9a-fA-F]{8}\/(.*)$" {
+              rewrite "^\/static\/[0-9a-fA-F]{8}\/(.*)" /$1 last;
+            }
+
+            location /userContent {
+              root /var/lib/jenkins/;
+              if (!-f $request_filename){
+                rewrite (.*) /$1 last;
+                break;
+              }
+              sendfile on;
+            }
+
+            location / {
+              sendfile off;
+              proxy_pass http://jenkins_upstream;
+              proxy_redirect default;
+              proxy_http_version 1.1;
+
+              proxy_set_header Connection        $connection_upgrade;
+              proxy_set_header Upgrade           $http_upgrade;
+              proxy_set_header Host               $host;
+              proxy_set_header X-Forwarded-Host   $host;
+              proxy_set_header X-Forwarded-Port   $server_port;
+              proxy_set_header X-Forwarded-Proto  $scheme;
+              proxy_set_header X-Real-IP          $remote_addr;
+              proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Server $host;
+              proxy_set_header X-Forwarded-Ssl    on;
+
+              proxy_connect_timeout 90s;
+              proxy_send_timeout    90s;
+              proxy_read_timeout    90s;
+
+              client_max_body_size    10m;
+              client_body_buffer_size 128k;
+              proxy_request_buffering off;
+            }
+
+            location /health {
+              access_log off;
+              return 200 "healthy\n";
+              add_header Content-Type text/plain;
+            }
+          }
+      notify: reload nginx
+
+    - name: Test nginx configuration
+      ansible.builtin.command: nginx -t
+      register: nginx_test
+      changed_when: false
+
+  handlers:
+    - name: reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+
+- name: Configure Monitoring Nginx HTTPS (Grafana + Prometheus)
+  hosts: nginx
+  become: yes
+
+  vars:
+    ssl_dir: /etc/nginx/ssl
+    ssl_protocols: "TLSv1.2 TLSv1.3"
+    ssl_ciphers: "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384"
+    monitoring_services:
+      - name: grafana
+        server_name: grafana.local
+        backend_host: "192.168.56.18"
+        backend_port: "3000"
+        ssl_cert: "{{ ssl_dir }}/grafana.crt"
+        ssl_key: "{{ ssl_dir }}/grafana.key"
+      - name: prometheus
+        server_name: prometheus.local
+        backend_host: "192.168.56.18"
+        backend_port: "9090"
+        ssl_cert: "{{ ssl_dir }}/prometheus.crt"
+        ssl_key: "{{ ssl_dir }}/prometheus.key"
+
+  tasks:
+    - name: Ensure SSL directory exists
+      ansible.builtin.file:
+        path: "{{ ssl_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Generate self-signed SSL certificates for monitoring
+      ansible.builtin.command: >
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048
+        -keyout {{ item.ssl_key }}
+        -out {{ item.ssl_cert }}
+        -subj "/C=US/ST=California/L=San Francisco/O=DevOps Automation/OU=IT/CN={{ item.server_name }}"
+      args:
+        creates: "{{ item.ssl_cert }}"
+      loop: "{{ monitoring_services }}"
+      loop_control:
+        label: "{{ item.server_name }}"
+
+    - name: Deploy monitoring HTTP redirect configs
+      ansible.builtin.copy:
+        dest: "/etc/nginx/conf.d/{{ item.name }}-http-redirect.conf"
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          server {
+            listen 80;
+            server_name {{ item.server_name }};
+            return 301 https://$host$request_uri;
+          }
+      loop: "{{ monitoring_services }}"
+      loop_control:
+        label: "{{ item.server_name }}"
+      notify: reload nginx
+
+    - name: Deploy monitoring HTTPS reverse proxy configs
+      ansible.builtin.copy:
+        dest: "/etc/nginx/conf.d/{{ item.name }}-https.conf"
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          upstream {{ item.name }}_upstream {
+            server {{ item.backend_host }}:{{ item.backend_port }};
+            keepalive 32;
+          }
+
+          server {
+            listen 443 ssl;
+            server_name {{ item.server_name }};
+
+            ssl_certificate     {{ item.ssl_cert }};
+            ssl_certificate_key {{ item.ssl_key }};
+            ssl_protocols {{ ssl_protocols }};
+            ssl_prefer_server_ciphers on;
+            ssl_ciphers {{ ssl_ciphers }};
+
+            add_header Strict-Transport-Security "max-age=63072000" always;
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-Content-Type-Options "nosniff" always;
+
+            location / {
+              proxy_pass http://{{ item.name }}_upstream;
+              proxy_http_version 1.1;
+              proxy_set_header Connection "";
+
+              proxy_set_header Host               $host;
+              proxy_set_header X-Forwarded-Host   $host;
+              proxy_set_header X-Forwarded-Port   $server_port;
+              proxy_set_header X-Forwarded-Proto  $scheme;
+              proxy_set_header X-Real-IP          $remote_addr;
+              proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Server $host;
+              proxy_set_header X-Forwarded-Ssl    on;
+
+              proxy_connect_timeout 60s;
+              proxy_send_timeout    60s;
+              proxy_read_timeout    60s;
+
+              proxy_buffering on;
+              proxy_buffer_size 4k;
+              proxy_buffers 8 4k;
+            }
+
+            location /health {
+              access_log off;
+              return 200 "healthy\n";
+              add_header Content-Type text/plain;
+            }
+          }
+      loop: "{{ monitoring_services }}"
+      loop_control:
+        label: "{{ item.server_name }}"
+      notify: reload nginx
+
+    - name: Test nginx configuration
+      ansible.builtin.command: nginx -t
+      register: nginx_test
+      changed_when: false
+
+  handlers:
+    - name: reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+
+  post_tasks:
+    - name: Display final nginx status
+      debug:
+        msg: |
+          Nginx reverse proxy fully configured with SSL
+
+          All HTTPS endpoints:
+          {% for backend in site_backends %}
+          - https://{{ backend.server_name }}
+          {% endfor %}

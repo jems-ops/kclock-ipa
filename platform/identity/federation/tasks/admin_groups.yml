@@ -1,0 +1,58 @@
+---
+# ================================
+# Canonical app admin groups in FreeIPA
+# ================================
+#
+# Ensure each per-app admin group exists with a name that matches the target
+# app's *built-in* admin group, so SAML group sync grants admin automatically
+# with no per-app permission grants required.
+#
+# Examples of canonical names:
+#   - SonarQube: sonar-administrators   (Sonar's built-in admin group)
+#   - Jenkins:   jenkins-administrators
+#
+# This task only creates the canonical group; it does NOT migrate members from
+# any legacy/alternately-named groups. Membership is managed out-of-band.
+#
+# Assumes freeipa_admin_user / freeipa_admin_password are set (vault).
+
+# --------------------------------
+# 1. Obtain Kerberos ticket securely
+# --------------------------------
+- name: Obtain Kerberos ticket (admin_groups)
+  ansible.builtin.command: kinit {{ freeipa_admin_user }}
+  args:
+    stdin: "{{ freeipa_admin_password }}"
+  no_log: true
+  changed_when: false
+
+# --------------------------------
+# 2. Look up the canonical group
+# --------------------------------
+- name: Check if canonical app admin group exists
+  ansible.builtin.command: ipa group-show {{ item.name }}
+  register: app_admin_group_check
+  failed_when: false
+  changed_when: false
+  loop: "{{ freeipa_app_admin_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# --------------------------------
+# 3. Create the canonical group (only if missing)
+# --------------------------------
+- name: Create canonical app admin group
+  ansible.builtin.command: >
+    ipa group-add {{ item.item.name }}
+    --desc={{ item.item.desc | default(item.item.name) | quote }}
+  when: item.rc != 0
+  loop: "{{ app_admin_group_check.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+# --------------------------------
+# 4. Destroy Kerberos tickets
+# --------------------------------
+- name: Destroy Kerberos ticket cache (admin_groups)
+  ansible.builtin.command: kdestroy -A
+  changed_when: false

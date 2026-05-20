@@ -1,0 +1,12 @@
+---
+# IPA-side prep tasks are declarative — no handler needed there.
+#
+# The Keycloak-side LDAP federation tasks (tasks/ldap/ldap_truststore.yml)
+# notify `restart keycloak` after importing the IPA CA into the JKS
+# truststore and after writing the SPI truststore block to keycloak.conf.
+- name: restart keycloak
+  ansible.builtin.systemd:
+    name: keycloak
+    state: restarted
+    daemon_reload: true
+  become: true

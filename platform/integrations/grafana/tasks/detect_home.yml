@@ -1,0 +1,31 @@
+---
+- name: Set Grafana config path from variable
+  ansible.builtin.set_fact:
+    grafana_config_path: "{{ grafana_config_file }}"
+  when: grafana_config_file != ""
+
+- name: Auto-detect Grafana config file
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/grafana/grafana.ini
+    - /usr/share/grafana/conf/grafana.ini
+  register: grafana_config_stat
+  when: grafana_config_file == ""
+
+- name: Set Grafana config path from auto-detection
+  ansible.builtin.set_fact:
+    grafana_config_path: "{{ item.item }}"
+  loop: "{{ grafana_config_stat.results | default([]) }}"
+  when:
+    - grafana_config_file == ""
+    - item.stat.exists | default(false)
+
+- name: Fail if Grafana config not found
+  ansible.builtin.fail:
+    msg: "Cannot find grafana.ini. Set grafana_config_file explicitly."
+  when: grafana_config_path is not defined
+
+- name: Confirm Grafana config path
+  ansible.builtin.debug:
+    msg: "Grafana config: {{ grafana_config_path }}"

@@ -1,0 +1,23 @@
+vault_freeipa_ldap_bind_password: "StrongBindPassword123!"
+vault_freeipa_keycloak_svc_password: "StrongBindPassword123!"
+
+# Keycloak admin password
+vault_keycloak_admin_password: "admin123"
+
+# JKS truststore password (used to protect the Keycloak truststore file)
+vault_keycloak_truststore_password: "changeit"
+
+# SonarQube admin token
+# Create via: SonarQube → My Account → Security → Generate Token
+vault_sonarqube_admin_token: "squ_c4dd40f3fcbf624471e1b745003e40e12871d8f0"
+
+# FreeIPA admin user password (used by bind_account.yml: kinit admin, ipa user-*)
+vault_freeipa_admin_password: "TempPass123!"
+
+# Encrypted vault file for sensitive variables
+# Use: ansible-vault edit group_vars/all/vault.yml
+
+# SSH and sudo credentials for hosts
+vault_ansible_user: vagrant
+vault_ansible_password: vagrant
+vault_ansible_become_password: vagrant

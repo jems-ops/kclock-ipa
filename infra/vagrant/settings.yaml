@@ -1,0 +1,16 @@
+box_name: "gyptazy/rocky9.3-arm64"
+box_version: "1.0.2"
+
+vm:
+  - name: "monitor"
+    ip: "192.168.56.18"
+    memory: "2048"
+    cpus: "2"
+
+#  - name: "platform"
+#    ip: "192.168.56.20"
+#    memory: "8192"
+#    cpus: "4"
+
+
+

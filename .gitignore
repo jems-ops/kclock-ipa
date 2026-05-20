@@ -1,67 +1,39 @@
-# Ansible
-*.retry
-.ansible/
-ansible.log
-
-# Vault password - NEVER commit
-.vault_pass
-*.vault_pass
-vault_pass.txt
-
-# Vault secrets file (only the .example template should be committed)
-group_vars/all/vault.yml
+# Dependencies
+node_modules/
+*.egg-info/
 
 # Python
 __pycache__/
-*.py[cod]
-*.so
-.Python
-venv/
-env/
-.venv/
+*.pyc
+*.pyo
+*.db
 
-# Molecule / Testing
-.molecule/
-.cache/
-.pytest_cache/
-htmlcov/
-.coverage
-test-results/
+# Vagrant / VM images
+.vagrant/
+*.vmdk
+*.vmx
+*.vmxf
+*.nvram
+*.vmsd
+*.scoreboard
+*.plist
+*.lck
+
+# Build output
+dist/
+build/
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
+
+# Ansible
+*.retry
+.vault_pass
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Secrets & keys
-secrets/
-*.pem
-*.key
-id_rsa*
-id_ecdsa*
-id_ed25519*
-
-# Temp / backups
-*.tmp
-*.temp
-*.backup
-*.bak
-*.orig
-backups/
-local_settings.yml
-local_vars.yml
-
-# Local inventory overrides (never commit real server IPs/creds)
-local.hosts.yml
-local_inventory*
-
-# Runtime artefacts from playbooks
-/tmp/keycloak-saml-metadata.xml
-/tmp/freeipa-ca.crt
-ansible.log
+# Vite cache
+.vite/

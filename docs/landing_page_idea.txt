@@ -1,0 +1,345 @@
+AI-Powered Identity & Compliance Automation Platform — UI Landing Page Concept
+
+Product Positioning
+
+Headline
+
+Zero Trust Identity & Compliance Automation Platform
+
+Subheadline
+
+Automate SSO onboarding, LDAP federation, STIG compliance, and AI-powered troubleshooting across enterprise and federal DevSecOps environments.
+
+Primary CTA Buttons
+
+* Start Onboarding
+* Launch AI Assistant
+* Run Compliance Scan
+* View Demo
+
+⸻
+
+Hero Section
+
+Layout
+
+ -------------------------------------------------------------
+| Logo                  Navigation                           |
+|-------------------------------------------------------------|
+|                                                             |
+|  AI-Powered Identity & Compliance Automation                |
+|                                                             |
+|  Automate SSO, STIG compliance, and DevSecOps onboarding    |
+|  with Keycloak, FreeIPA, AI agents, and automation.         |
+|                                                             |
+| [ Start Demo ] [ AI Troubleshooting ]                       |
+|                                                             |
+|-------------------------------------------------------------|
+|  Live Platform Architecture Visualization                   |
+|                                                             |
+|  Keycloak ↔ FreeIPA ↔ Apps ↔ Compliance ↔ AI                |
+ -------------------------------------------------------------
+
+⸻
+
+Navigation Bar
+
+Suggested Menu
+
+* Platform
+* Integrations
+* Compliance
+* AI Assistant
+* Documentation
+* Architecture
+* Demo
+* GitHub
+* Login
+
+⸻
+
+Platform Dashboard Concept
+
+Main Dashboard Widgets
+
+ -------------------------------------------------------------
+| Total Apps | SSO Enabled | Compliance Score | Drift Alerts |
+ -------------------------------------------------------------
+|      12    |      9      |       91%        |      3       |
+ -------------------------------------------------------------
+
+Secondary Panels
+
+Identity Federation Status
+
+✔ Keycloak Connected
+✔ FreeIPA Federation Healthy
+✔ LDAP Sync Success
+✔ SAML Metadata Valid
+
+AI Recommendations
+
+AI detected SAML ACS mismatch in SonarQube.
+Suggested remediation generated.
+
+Compliance Overview
+
+- PostgreSQL STIG: 92%
+- FreeIPA STIG: 89%
+- Apache STIG: 95%
+- DNS STIG: 87%
+
+⸻
+
+Integrations Page
+
+Purpose
+
+Central onboarding page for DevOps applications.
+
+Integration Cards
+
+ -------------------------------------------------------------
+| Jenkins      | SonarQube    | Wazuh        | Jira          |
+| Status: ON   | Status: ON   | Status: OFF  | Status: ON    |
+| [Manage]     | [Manage]     | [Enable]     | [Manage]      |
+ -------------------------------------------------------------
+
+Additional cards:
+
+* Confluence
+* Artifactory
+* Nessus
+* Bitbucket
+* Grafana
+* Prometheus
+
+⸻
+
+SSO Onboarding Wizard
+
+Step-Based Workflow
+
+Step 1 — Select Application
+
+Select integration target:
+[ Jenkins ] [ SonarQube ] [ Wazuh ] [ Jira ]
+
+Step 2 — Identity Settings
+
+Fields:
+
+* App URL
+* SAML/OIDC
+* Group Mapping
+* NameID
+* Redirect URI
+
+Step 3 — Generate Config
+
+System automatically:
+
+* Creates Keycloak client
+* Generates metadata
+* Configures mappers
+* Applies automation
+
+Step 4 — Validation
+
+✔ Metadata validated
+✔ SAML login tested
+✔ Group mapping verified
+✔ Role assignment validated
+
+⸻
+
+AI Assistant Page
+
+Main Concept
+
+ChatGPT-style operational troubleshooting assistant.
+
+Example UI
+
+ -------------------------------------------------------------
+| AI Security Assistant                                       |
+|-------------------------------------------------------------|
+| Why is Wazuh SAML failing?                                  |
+|-------------------------------------------------------------|
+| AI Analysis:                                                |
+| - ACS URL mismatch detected                                 |
+| - Keycloak client redirect URI incorrect                    |
+| - Suggested remediation generated                           |
+|                                                             |
+| [Generate Fix] [Run Validation] [Export Report]             |
+ -------------------------------------------------------------
+
+⸻
+
+Compliance Engine Page
+
+Purpose
+
+Central compliance visibility and remediation platform.
+
+Compliance Dashboard
+
+STIG Categories
+
+ -------------------------------------------------------------
+| PostgreSQL | FreeIPA | Apache | DNS | Kubernetes | OpenSCAP |
+ -------------------------------------------------------------
+
+Findings Panel
+
+V-205157  OPEN
+V-205224  NOT APPLICABLE
+V-206562  NOT A FINDING
+
+AI Compliance Summary
+
+AI Summary:
+3 high severity findings detected.
+Recommended remediation playbooks available.
+
+⸻
+
+Architecture Visualization Section
+
+Visual Diagram
+
+             +----------------+
+             |    Frontend    |
+             +--------+-------+
+                      |
+             +--------v-------+
+             |    FastAPI     |
+             +--------+-------+
+                      |
+     +----------------+----------------+
+     |                                 |
++----v-----+                    +------v------+
+| AI Engine|                    |Automation   |
+| Ollama   |                    | Engine      |
++----+-----+                    +------+------+
+     |                                 |
+     |                         +-------v-------+
+     |                         | Identity      |
+     |                         | Keycloak IPA  |
+     |                         +-------+-------+
+     |                                 |
+     +------------------------+--------+
+                              |
+                +-------------v-------------+
+                | Integrations              |
+                | Jenkins / Jira / Wazuh    |
+                +---------------------------+
+
+⸻
+
+Suggested Frontend Stack
+
+Recommended Technologies
+
+* Next.js
+* React
+* TailwindCSS
+* shadcn/ui
+* Framer Motion
+* Recharts
+
+⸻
+
+Suggested Visual Theme
+
+Theme Style
+
+Preferred Design
+
+* Dark mode default
+* Cybersecurity-inspired UI
+* Soft neon blue accents
+* Clean DevOps dashboard aesthetic
+* Terminal-inspired AI assistant panels
+
+Inspiration
+
+Think:
+
+* Grafana
+* Datadog
+* GitHub
+* Vercel
+* Palo Alto Prisma
+* CrowdStrike Falcon
+
+⸻
+
+Key Product Screens
+
+MVP Screens
+
+Public Landing Page
+
+* marketing
+* architecture
+* demos
+* integrations
+
+Admin Dashboard
+
+* onboarding
+* app status
+* compliance score
+* AI assistant
+
+AI Troubleshooting
+
+* log analysis
+* remediation
+* config validation
+
+Compliance Engine
+
+* STIG reports
+* drift detection
+* audit evidence
+
+Identity Federation
+
+* Keycloak realms
+* LDAP sync
+* FreeIPA federation
+* SAML/OIDC management
+
+⸻
+
+Most Important UX Principle
+
+The platform should feel like:
+
+Terraform + Keycloak + Splunk + AI Assistant
+
+combined into one security automation platform.
+
+⸻
+
+Recommended MVP Flow
+
+User Journey
+
+1. Login
+2. Select application
+3. Click Enable SSO
+4. AI validates config
+5. Compliance evidence generated
+6. Dashboard shows healthy integration
+
+That flow alone is already a strong demo for:
+
+* GovTech
+* cybersecurity
+* TEDCO
+* seed investors
+* DevSecOps teams
+* federal modernization initiatives

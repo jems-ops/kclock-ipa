@@ -1,0 +1,23 @@
+---
+- name: Prepare FreeIPA for Keycloak LDAP Federation
+  hosts: freeipa
+  gather_facts: yes
+  become: yes
+
+  pre_tasks:
+    - name: Display preparation information
+      debug:
+        msg: |
+          FreeIPA Preparation for Keycloak Federation
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          Time: {{ ansible_date_time.iso8601 }}
+
+  roles:
+    - freeipa_keycloak_prep
+
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          FreeIPA prepared on {{ inventory_hostname }}
+          Next: configure Keycloak LDAP federation

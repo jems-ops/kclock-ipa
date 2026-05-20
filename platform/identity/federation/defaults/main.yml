@@ -1,0 +1,27 @@
+---
+# If freeipa_ca_cert_path is left empty in group_vars/all/freeipa.yml, the role
+# stat's these candidate paths in order and uses the first one that exists.
+# Extend this list if you're running on a layout the defaults don't cover.
+freeipa_ca_cert_path:            ""
+freeipa_ca_cert_candidates:
+  - /etc/ipa/ca.crt                                       # IPA 4.x server & enrolled clients (most common)
+  - /etc/ipa/nssdb/cacert.pem                             # older IPA layouts
+  - /etc/pki/ca-trust/source/anchors/ipa-ca.crt           # system CA anchor copy
+  - /var/lib/ipa/pki-ca/publish/ipa.crt                   # Dogtag publish directory
+  - /etc/pki/pki-tomcat/certs/ca.crt                      # Dogtag Tomcat instance
+
+freeipa_keycloak_ca_export_path: /tmp/freeipa-ca.crt
+
+# Keycloak admin endpoint used by the LDAP federation submodule of this role
+# (tasks/ldap_federation.yml + tasks/ldap/*). Self-contained — the role does
+# not depend on keycloak_saml_integration to be loaded.
+#
+# admin_api_url defaults to http://localhost:8080 because the federation
+# play runs on the Keycloak host itself and we want to avoid the public
+# HTTPS reverse proxy. Override per-play via the playbook's vars: block
+# (or pass a different keycloak_admin_api_url group var).
+freeipa_keycloak_prep_keycloak:
+  admin_api_url: "{{ keycloak_admin_api_url | default('http://localhost:8080') }}"
+  realm:         "{{ keycloak_saml_integration_realm_name | default('master') }}"
+  admin_user:    "{{ vault_keycloak_admin_user | default('admin') }}"
+  admin_password: "{{ vault_keycloak_admin_password }}"

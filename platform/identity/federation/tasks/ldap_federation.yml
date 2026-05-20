@@ -1,0 +1,30 @@
+---
+# Keycloak LDAP user federation against FreeIPA.
+#
+# This submodule is intentionally NOT included from tasks/main.yml — it has
+# its own playbook (playbooks/configure-keycloak-ldap-federation.yml) so that
+# per-app SAML re-runs do not touch user federation.
+#
+# Order matters:
+#   1. Import the FreeIPA CA into Keycloak's JKS truststore and restart Keycloak
+#      so subsequent LDAP traffic can use the SPI truststore.
+#   2. Get an admin token (after the restart, any prior token is gone).
+#   3. Create / update the LDAP UserStorageProvider via the admin REST API.
+#   4. Create username / email / firstName / lastName / fullName / group LDAP
+#      mappers parented to the provider.
+#   5. Trigger a full user sync.
+
+- name: Configure FreeIPA CA truststore on Keycloak host
+  ansible.builtin.include_tasks: ldap/ldap_truststore.yml
+
+- name: Get Keycloak admin token (post-restart)
+  ansible.builtin.include_tasks: ldap/get_keycloak_token.yml
+
+- name: Create or update FreeIPA LDAP user federation provider
+  ansible.builtin.include_tasks: ldap/ldap_provider.yml
+
+- name: Create LDAP attribute and group mappers
+  ansible.builtin.include_tasks: ldap/ldap_mappers.yml
+
+- name: Trigger full user sync from FreeIPA
+  ansible.builtin.include_tasks: ldap/ldap_sync.yml

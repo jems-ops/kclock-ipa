@@ -1,0 +1,24 @@
+---
+- name: Install Keycloak
+  hosts: keycloak
+  gather_facts: yes
+  become: yes
+
+  pre_tasks:
+    - name: Display installation information
+      debug:
+        msg: |
+          Keycloak Installation
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          Time: {{ ansible_date_time.iso8601 }}
+
+  roles:
+    - install-keycloak
+
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          Keycloak installed on {{ inventory_hostname }}
+          Direct URL: http://{{ inventory_hostname }}:8080
+          Next: run nginx-proxy.yml to configure reverse proxy

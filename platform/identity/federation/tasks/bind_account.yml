@@ -1,0 +1,162 @@
+---
+# ================================
+# STIG-Hardened FreeIPA Service Users
+# ================================
+#
+# Creates two dedicated IPA service accounts:
+#   svc.ldap      — LDAP bind user for Keycloak's FreeIPA user federation sync
+#   svc.keycloak  — Keycloak service user for connecting to downstream apps
+#
+# Assumes:
+# - freeipa_admin_user
+# - freeipa_admin_password            (vault)
+# - freeipa_bind_uid                  (svc.ldap)
+# - freeipa_bind_password             (vault)
+# - freeipa_keycloak_svc_uid          (svc.keycloak)
+# - freeipa_keycloak_svc_password     (vault)
+#
+# This implementation is intentionally offline-safe:
+# - no ansible.builtin.expect
+# - no python3-pexpect dependency
+# - no repo / Internet requirement on the IPA host
+#
+# Passwords are still sourced from vault vars and fed only over stdin to the
+# IPA / Kerberos CLIs.
+
+# ── Build a list of service accounts to provision ────────────────────────
+- name: Define FreeIPA service accounts to provision
+  ansible.builtin.set_fact:
+    _freeipa_svc_accounts:
+      - uid: "{{ freeipa_bind_uid }}"
+        first: LDAP
+        last: Service
+        password: "{{ freeipa_bind_password }}"
+        purpose: LDAP bind user for Keycloak federation sync
+      - uid: "{{ freeipa_keycloak_svc_uid }}"
+        first: Keycloak
+        last: Service
+        password: "{{ freeipa_keycloak_svc_password }}"
+        purpose: Keycloak service user for app connections
+
+# --------------------------------
+# 1. Obtain Kerberos ticket securely
+# --------------------------------
+- name: Obtain Kerberos ticket
+  ansible.builtin.command: kinit {{ freeipa_admin_user }}
+  args:
+    stdin: "{{ freeipa_admin_password }}"
+  no_log: true
+  changed_when: false
+
+# --------------------------------
+# 2. Check if service users exist
+# --------------------------------
+- name: Check if service user exists
+  ansible.builtin.command: ipa user-show {{ item.uid }}
+  register: svc_user_checks
+  failed_when: false
+  changed_when: false
+  loop: "{{ _freeipa_svc_accounts }}"
+  loop_control:
+    label: "{{ item.uid }}"
+
+# --------------------------------
+# 3. Create service users (only if missing)
+# --------------------------------
+- name: Create service user
+  ansible.builtin.command: >
+    ipa user-add {{ item.item.uid }}
+    --first={{ item.item.first }}
+    --last={{ item.item.last }}
+  when: item.rc != 0
+  loop: "{{ svc_user_checks.results }}"
+  loop_control:
+    label: "{{ item.item.uid }}"
+
+# --------------------------------
+# 4. Set service user passwords securely
+# --------------------------------
+- name: Set password for service user
+  ansible.builtin.command: ipa passwd {{ item.item.uid }}
+  args:
+    stdin: "{{ item.item.password }}\n{{ item.item.password }}"
+  when: item.rc != 0
+  no_log: true
+  loop: "{{ svc_user_checks.results }}"
+  loop_control:
+    label: "{{ item.item.uid }}"
+
+# --------------------------------
+# 5. Disable password expiration (service account behavior)
+# --------------------------------
+- name: Ensure service user password does not expire
+  ansible.builtin.command: >
+    ipa user-mod {{ item.uid }}
+    --setattr=krbPasswordExpiration=20380119031407Z
+  register: svc_user_expiration
+  changed_when: false
+  failed_when:
+    - svc_user_expiration.rc != 0
+    - "'no modifications to be performed' not in (svc_user_expiration.stderr | lower)"
+  loop: "{{ _freeipa_svc_accounts }}"
+  loop_control:
+    label: "{{ item.uid }}"
+
+# --------------------------------
+# 6. Ensure service users are active
+# --------------------------------
+- name: Ensure service user is enabled
+  ansible.builtin.command: ipa user-enable {{ item.uid }}
+  register: svc_user_enable
+  changed_when: false
+  failed_when:
+    - svc_user_enable.rc != 0
+    - "'already enabled' not in (svc_user_enable.stderr | lower)"
+  loop: "{{ _freeipa_svc_accounts }}"
+  loop_control:
+    label: "{{ item.uid }}"
+
+# --------------------------------
+# 7. Post-creation verification
+# --------------------------------
+# Hard-fail if a service user doesn't actually exist in FreeIPA after the
+# create step. This catches silent failures (e.g. IPA rejected the username
+# but returned rc=0, or a replication lag on a multi-master topology).
+- name: Verify service user exists in FreeIPA
+  ansible.builtin.command: ipa user-show {{ item.uid }}
+  register: svc_user_verify
+  changed_when: false
+  failed_when: svc_user_verify.rc != 0
+  loop: "{{ _freeipa_svc_accounts }}"
+  loop_control:
+    label: "{{ item.uid }}"
+
+- name: Verify Kerberos principal exists for service user
+  ansible.builtin.command: ipa user-show {{ item.uid }} --raw
+  register: svc_user_principal_check
+  changed_when: false
+  failed_when:
+    - svc_user_principal_check.rc != 0 or 'krbprincipalname' not in (svc_user_principal_check.stdout | lower)
+  loop: "{{ _freeipa_svc_accounts }}"
+  loop_control:
+    label: "{{ item.uid }}"
+
+# --------------------------------
+# 8. Destroy Kerberos tickets
+# --------------------------------
+- name: Destroy Kerberos ticket cache
+  ansible.builtin.command: kdestroy -A
+  changed_when: false
+
+# --------------------------------
+# 9. Status output
+# --------------------------------
+- name: Show service user status
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.uid }} ({{ item.item.purpose }}):
+      {{ 'already exists (compliant)' if item.rc == 0 else 'created (STIG-compliant)' }}
+      — verified in FreeIPA
+  loop: "{{ svc_user_checks.results }}"
+  loop_control:
+    label: "{{ item.item.uid }}"

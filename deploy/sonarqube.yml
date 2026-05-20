@@ -1,0 +1,25 @@
+---
+- name: Install SonarQube
+  hosts: sonarqube_servers
+  gather_facts: yes
+  become: yes
+
+  pre_tasks:
+    - name: Display installation information
+      debug:
+        msg: |
+          SonarQube Installation
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          Time: {{ ansible_date_time.iso8601 }}
+
+  roles:
+    - install-sonarqube
+
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          SonarQube installed on {{ inventory_hostname }}
+          Direct URL: http://{{ inventory_hostname }}:9000
+          Default credentials: admin/admin
+          Next: run nginx-proxy.yml to configure reverse proxy

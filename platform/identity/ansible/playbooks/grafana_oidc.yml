@@ -1,0 +1,13 @@
+---
+# Configures Grafana OSS OIDC authentication via Keycloak.
+# Creates the OIDC client in Keycloak, writes grafana.ini, restarts Grafana.
+#
+# Prerequisite: run keycloak_config.yml first so the realm and LDAP federation exist.
+
+- name: Configure Grafana OIDC settings
+  hosts: grafana
+  become: true
+  gather_facts: false
+  ignore_unreachable: true
+  roles:
+    - grafana_oidc_config

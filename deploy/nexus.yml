@@ -1,0 +1,24 @@
+---
+- name: Install Nexus Repository Manager
+  hosts: nexus_servers
+  gather_facts: yes
+  become: yes
+
+  pre_tasks:
+    - name: Display installation information
+      debug:
+        msg: |
+          Nexus Repository Manager Installation
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          Time: {{ ansible_date_time.iso8601 }}
+
+  roles:
+    - install-nexus
+
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          Nexus installed on {{ inventory_hostname }}
+          Direct URL: http://{{ inventory_hostname }}:{{ nexus_port }}
+          Next: run nginx-proxy.yml to configure reverse proxy

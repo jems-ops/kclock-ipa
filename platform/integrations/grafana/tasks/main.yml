@@ -1,0 +1,5 @@
+---
+- import_tasks: detect_home.yml
+- import_tasks: create_oidc_client.yml
+- import_tasks: configure_oidc.yml
+- import_tasks: validate.yml

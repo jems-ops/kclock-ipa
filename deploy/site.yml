@@ -1,0 +1,45 @@
+---
+# Master Deployment Playbook
+# Deploys all applications and configures nginx reverse proxy with SSL
+#
+# Deploy everything:       ansible-playbook site.yml
+# Skip specific apps:      ansible-playbook site.yml --skip-tags wazuh,tenable
+# Only deploy nginx proxy: ansible-playbook site.yml --tags nginx
+
+# --- Identity & SSO ---
+- import_playbook: freeipa-prep.yml
+  tags: [freeipa, identity]
+
+- import_playbook: keycloak.yml
+  tags: [keycloak, identity]
+
+# --- CI/CD ---
+- import_playbook: jenkins.yml
+  tags: [jenkins, cicd]
+
+- import_playbook: sonarqube.yml
+  tags: [sonarqube, cicd]
+
+- import_playbook: nexus.yml
+  tags: [nexus, cicd]
+
+# --- Monitoring ---
+- import_playbook: grafana.yml
+  tags: [grafana, monitoring]
+
+- import_playbook: prometheus.yml
+  tags: [prometheus, monitoring]
+
+- import_playbook: monitoring-agents.yml
+  tags: [monitoring, agents]
+
+# --- Security ---
+- import_playbook: wazuh.yml
+  tags: [wazuh, security]
+
+- import_playbook: tenable.yml
+  tags: [tenable, security]
+
+# --- Nginx Reverse Proxy + SSL (runs last, after all apps are installed) ---
+- import_playbook: nginx-proxy.yml
+  tags: [nginx, proxy, ssl]
